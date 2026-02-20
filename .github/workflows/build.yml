@@ -24,9 +24,7 @@ jobs:
           cache: 'npm'
 
       - name: Install Dependencies
-        run: |
-          rm -rf node_modules package-lock.json
-          npm install
+        run: npm ci
 
       - name: Build and Release
         uses: samuelmeuli/action-electron-builder@v1
