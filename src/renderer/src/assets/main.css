@@ -1,0 +1,10 @@
+@import "tailwindcss";
+
+@import './base.css';
+
+/* Custom base styles if needed can go here */
+#root {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
