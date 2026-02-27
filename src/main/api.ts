@@ -127,9 +127,10 @@ export function setupIpcHandlers() {
     });
 
     // Control
-    ipcMain.handle('control-service', async (_, { path: servicePath, action, port, mode }) => {
+    ipcMain.handle('control-service', async (_, { path: servicePath, action, port, mode, customCommand }) => {
         if (action === 'start') {
-            const command = mode === 'prod' ? 'npm start' : 'npm run dev';
+            const defaultCommand = mode === 'prod' ? 'npm start' : 'npm run dev';
+            const command = customCommand || defaultCommand;
             await processManager.startService(servicePath, command, port, mode || 'dev');
         } else if (action === 'stop') {
             await processManager.stopService(servicePath);
@@ -165,6 +166,24 @@ export function setupIpcHandlers() {
         return { success: true };
     });
 
+    // Service Settings (Custom Commands)
+    const getServiceConfigsPath = () => path.join(app.getPath('userData'), 'service-configs.json');
+    ipcMain.handle('get-service-configs', () => {
+        const p = getServiceConfigsPath();
+        if (fs.existsSync(p)) return { configs: JSON.parse(fs.readFileSync(p, 'utf8')) };
+        return { configs: {} };
+    });
+
+    ipcMain.handle('save-service-config', (_, { servicePath, config }) => {
+        const p = getServiceConfigsPath();
+        let configs: any = {};
+        if (fs.existsSync(p)) configs = JSON.parse(fs.readFileSync(p, 'utf8'));
+
+        configs[servicePath] = config;
+        fs.writeFileSync(p, JSON.stringify(configs, null, 2));
+        return { success: true };
+    });
+
     // Git
     ipcMain.handle('git-command', async (_, { action, path: repoPath, branch }) => {
         try {
@@ -184,13 +203,15 @@ export function setupIpcHandlers() {
     });
 
     // Command (npm)
-    ipcMain.handle('npm-command', async (_, { action, path: servicePath }) => {
-        let cmd = '';
-        switch (action) {
-            case 'install': cmd = 'npm install'; break;
-            case 'install-legacy': cmd = 'npm install --legacy-peer-deps'; break;
-            case 'build': cmd = 'npm run build'; break;
-            case 'start-prod': cmd = 'npm start'; break;
+    ipcMain.handle('npm-command', async (_, { action, path: servicePath, customCommand }) => {
+        let cmd = customCommand || '';
+        if (!cmd) {
+            switch (action) {
+                case 'install': cmd = 'npm install'; break;
+                case 'install-legacy': cmd = 'npm install --legacy-peer-deps'; break;
+                case 'build': cmd = 'npm run build'; break;
+                case 'start-prod': cmd = 'npm start'; break;
+            }
         }
         if (cmd) {
             await processManager.startService(servicePath, cmd);

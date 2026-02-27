@@ -3,7 +3,9 @@ import { ServiceCard } from "./components/ServiceCard";
 import { GroupCard } from "./components/GroupCard";
 import { GroupModal } from "./components/GroupModal";
 import { LogModal } from "./components/LogModal";
-import { Loader2, RefreshCw, FolderOpen, Settings, Plus, Code } from "lucide-react";
+import { BranchModal } from "./components/BranchModal";
+import { ServiceSettingsModal } from "./components/ServiceSettingsModal";
+import { Loader2, RefreshCw, FolderOpen, Settings, Plus, Code, LayoutGrid, List } from "lucide-react";
 
 interface Service {
   name: string;
@@ -40,6 +42,14 @@ function App() {
   const [isGroupModalOpen, setIsGroupModalOpen] = useState(false);
   const [editingGroup, setEditingGroup] = useState<Group | undefined>(undefined);
   const [loadingIdePaths, setLoadingIdePaths] = useState<string[]>([]);
+  const [isBranchModalOpen, setIsBranchModalOpen] = useState(false);
+  const [branchModalService, setBranchModalService] = useState<{ name: string, path: string, branch?: string } | null>(null);
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+
+  // Service Settings State
+  const [serviceConfigs, setServiceConfigs] = useState<Record<string, any>>({});
+  const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
+  const [settingsModalService, setSettingsModalService] = useState<{ name: string, path: string } | null>(null);
 
   useEffect(() => {
     loadConfig();
@@ -88,6 +98,13 @@ function App() {
         setGroups(groupsData.groups || []);
       }).catch(console.error);
 
+      // Defensively check if the function exists on window.api so the app doesn't crash if the preload script is stale
+      if (typeof window.api.getServiceConfigs === 'function') {
+        window.api.getServiceConfigs().then(configsData => {
+          setServiceConfigs(configsData.configs || {});
+        }).catch(console.error);
+      }
+
       const servicesData = await window.api.getServices(workbenchPath);
       setServices(servicesData.services || []);
     } catch (error) {
@@ -113,17 +130,63 @@ function App() {
 
     setServices(prev => prev.map(s => s.path === path ? { ...s, status: action === "start" ? "starting" : "stopped", mode: action === "start" ? mode : null } : s));
 
-    await window.api.controlService({ path, action, port: svc.port, mode });
+    const config = serviceConfigs[path] || {};
+    let customCommand = undefined;
+    if (action === "start") {
+      customCommand = mode === 'prod' ? config.prodCommand : config.devCommand;
+    }
+
+    await window.api.controlService({ path, action, port: svc.port, mode, customCommand });
     fetchData();
   };
 
   const handleCommand = async (path: string, action: string, payload?: any) => {
+    if (action === 'git-checkout-modal') {
+      const svc = services.find((s) => s.path === path);
+      if (svc) {
+        setBranchModalService({ name: svc.name, path: svc.path, branch: svc.gitBranch });
+        setIsBranchModalOpen(true);
+      }
+      return;
+    }
+
+    if (action === 'service-settings') {
+      console.log("Setting action triggered for path:", path);
+      const svc = services.find((s) => s.path === path);
+      console.log("Found service:", svc);
+      if (svc) {
+        setSettingsModalService({ name: svc.name, path: svc.path });
+        setIsSettingsModalOpen(true);
+        console.log("Set modal open state to true");
+      }
+      return;
+    }
+
     if (action.startsWith('npm-')) {
-      await window.api.npmCommand({ action: action.replace('npm-', ''), path });
+      const cmdAction = action.replace('npm-', '');
+      const config = serviceConfigs[path] || {};
+      let customCommand = undefined;
+
+      if (cmdAction === 'build') customCommand = config.buildCommand;
+      else if (cmdAction === 'install' || cmdAction === 'install-legacy') customCommand = config.installCommand;
+
+      await window.api.npmCommand({ action: cmdAction, path, customCommand });
     } else if (action.startsWith('git-')) {
       await window.api.gitCommand({ action: action.replace('git-', ''), path, branch: payload?.branch });
     }
     setTimeout(fetchData, 1000);
+  };
+
+  const handleCheckoutBranch = async (path: string, branch: string) => {
+    await window.api.gitCommand({ action: 'checkout', path, branch });
+    fetchData(); // refresh services
+  };
+
+  const handleSaveServiceConfig = async (path: string, config: any) => {
+    if (typeof window.api.saveServiceConfig === 'function') {
+      await window.api.saveServiceConfig({ servicePath: path, config });
+    }
+    setServiceConfigs(prev => ({ ...prev, [path]: config }));
   };
 
   const handleOpenIde = async (path: string) => {
@@ -282,6 +345,23 @@ function App() {
             >
               <RefreshCw className={`h-5 w-5 ${isRefreshing ? "animate-spin" : ""}`} />
             </button>
+
+            <div className="flex bg-gray-100 dark:bg-neutral-800 p-1 rounded-lg border border-gray-200 dark:border-neutral-700 ml-4">
+              <button
+                onClick={() => setViewMode('grid')}
+                className={`p-1.5 rounded-md transition-all ${viewMode === 'grid' ? 'bg-white dark:bg-neutral-700 text-indigo-600 dark:text-indigo-400 shadow-sm' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'}`}
+                title="Grid View"
+              >
+                <LayoutGrid className="h-4 w-4" />
+              </button>
+              <button
+                onClick={() => setViewMode('list')}
+                className={`p-1.5 rounded-md transition-all ${viewMode === 'list' ? 'bg-white dark:bg-neutral-700 text-indigo-600 dark:text-indigo-400 shadow-sm' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'}`}
+                title="List View"
+              >
+                <List className="h-4 w-4" />
+              </button>
+            </div>
           </div>
         </header>
 
@@ -321,9 +401,9 @@ function App() {
             </div>
 
             {isLoading && services.length === 0 ? (
-              <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+              <div className={viewMode === 'grid' ? "grid gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" : "flex flex-col gap-4"}>
                 {[1, 2, 3, 4].map((i) => (
-                  <div key={i} className="h-48 animate-pulse rounded-xl bg-gray-200 dark:bg-neutral-800" />
+                  <div key={i} className={`animate-pulse rounded-xl bg-gray-200 dark:bg-neutral-800 ${viewMode === 'grid' ? 'h-48' : 'h-24'}`} />
                 ))}
               </div>
             ) : services.length === 0 ? (
@@ -332,7 +412,7 @@ function App() {
                 <button onClick={handleSelectWorkbench} className="mt-4 text-indigo-600 hover:underline">Select a different folder</button>
               </div>
             ) : (
-              <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+              <div className={viewMode === 'grid' ? "grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" : "flex flex-col gap-4"}>
                 {services.map((service) => (
                   <ServiceCard
                     key={service.path}
@@ -341,6 +421,7 @@ function App() {
                     onCommand={handleCommand}
                     onOpenIde={handleOpenIde}
                     isIdeLoading={loadingIdePaths.includes(service.path)}
+                    layout={viewMode}
                   />
                 ))}
               </div>
@@ -363,6 +444,26 @@ function App() {
         serviceName={selectedService?.name || ""}
         servicePath={selectedService?.path || ""}
       />
+
+      <BranchModal
+        isOpen={isBranchModalOpen}
+        onClose={() => setIsBranchModalOpen(false)}
+        onCheckout={handleCheckoutBranch}
+        servicePath={branchModalService?.path}
+        serviceName={branchModalService?.name}
+        currentBranch={branchModalService?.branch}
+      />
+
+      {settingsModalService && (
+        <ServiceSettingsModal
+          isOpen={isSettingsModalOpen}
+          onClose={() => setIsSettingsModalOpen(false)}
+          servicePath={settingsModalService.path}
+          serviceName={settingsModalService.name}
+          initialConfig={serviceConfigs[settingsModalService.path]}
+          onSave={handleSaveServiceConfig}
+        />
+      )}
     </main>
   );
 }
