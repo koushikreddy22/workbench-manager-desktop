@@ -27,7 +27,7 @@ interface ServiceProps {
 export function ServiceCard({ name, path, status, mode, port, gitBranch, gitStatus, onToggle, onCommand, onOpenIde, isIdeLoading, layout = 'grid' }: ServiceProps) {
     const [actionLoading, setActionLoading] = useState<string | null>(null);
     const [menuOpen, setMenuOpen] = useState(false);
-    const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0, right: 'auto' });
+    const [menuPosition, setMenuPosition] = useState<{ top: number, left: number | 'auto', right: number | 'auto' }>({ top: 0, left: 0, right: 'auto' });
     const menuRef = useRef<HTMLDivElement>(null);
 
     const toggleMenu = () => {
@@ -37,10 +37,10 @@ export function ServiceCard({ name, path, status, mode, port, gitBranch, gitStat
             const spaceOnRight = window.innerWidth - rect.right;
             if (spaceOnRight < 224) {
                 // Not enough space, align to right side of the button
-                setMenuPosition({ top: rect.bottom + 8, left: 'auto' as any, right: window.innerWidth - rect.right });
+                setMenuPosition({ top: rect.bottom + 8, left: 'auto', right: window.innerWidth - rect.right });
             } else {
                 // Enough space, align to left side of the button
-                setMenuPosition({ top: rect.bottom + 8, left: rect.left, right: 'auto' as any });
+                setMenuPosition({ top: rect.bottom + 8, left: rect.left, right: 'auto' });
             }
         }
         setMenuOpen(!menuOpen);
