@@ -1,13 +1,32 @@
 :root {
   --color-background: #ffffff;
   --color-text: #1b1b1f;
+  
+  --vantage-primary: #0EA5E9; /* Electric Cyan */
+  --vantage-secondary: #4F46E5; /* Indigo */
+  --vantage-dark: #0F172A; /* Deep Charcoal Blue */
+  --vantage-surface: #ffffff;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --color-background: #1b1b1f;
-    --color-text: #ffffff;
+    --color-background: #0B0F19; /* Obsidian Black */
+    --color-surface: #131B2A; /* Deep Blue Surface */
+    --color-text: #F8FAFC;
+    
+    --vantage-surface: #1E293B;
   }
+}
+
+.bg-vantage-gradient {
+  background: linear-gradient(135deg, var(--vantage-secondary) 0%, var(--vantage-primary) 100%);
+}
+
+.bg-vantage-mesh {
+  background-image: 
+    radial-gradient(at 0% 0%, hsla(222, 47%, 12%, 1) 0, transparent 50%), 
+    radial-gradient(at 50% 0%, hsla(217, 91%, 60%, 0.1) 0, transparent 50%),
+    radial-gradient(at 100% 0%, hsla(263, 70%, 50%, 0.1) 0, transparent 50%);
 }
 
 body {

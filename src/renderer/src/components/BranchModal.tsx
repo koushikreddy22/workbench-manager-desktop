@@ -57,15 +57,20 @@ export function BranchModal({
     };
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-            <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-2xl dark:bg-neutral-800 border border-gray-100 dark:border-neutral-700">
-                <div className="flex items-center justify-between mb-6">
-                    <h2 className="text-xl font-bold dark:text-white flex items-center gap-2">
-                        <GitBranch className="h-5 w-5 text-indigo-500" />
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-md p-4 transition-all animate-in fade-in duration-300">
+            <div className="w-full max-w-md rounded-2xl bg-slate-900 border border-slate-700/50 shadow-2xl p-6 relative overflow-hidden">
+                <div className="absolute top-0 right-0 p-8 opacity-10 pointer-events-none">
+                    <GitBranch className="h-32 w-32 text-indigo-500" />
+                </div>
+                <div className="relative z-10 flex items-center justify-between mb-8">
+                    <h2 className="text-2xl font-black text-white flex items-center gap-3">
+                        <div className="p-2.5 rounded-xl bg-indigo-500/10 border border-indigo-500/20">
+                            <GitBranch className="h-6 w-6 text-indigo-400" />
+                        </div>
                         Switch Branch
                     </h2>
-                    <button onClick={onClose} className="rounded-full p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-neutral-700 dark:hover:text-gray-200 transition-colors">
-                        <X className="h-5 w-5" />
+                    <button onClick={onClose} className="rounded-full p-2 text-slate-400 hover:bg-slate-800 hover:text-white transition-all">
+                        <X className="h-6 w-6" />
                     </button>
                 </div>
 
@@ -74,14 +79,14 @@ export function BranchModal({
                         Select a branch to checkout for <span className="font-medium text-gray-900 dark:text-gray-200">{serviceName}</span>
                     </div>
 
-                    <div className="relative">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                    <div className="relative group z-10">
+                        <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500 group-focus-within:text-cyan-400 transition-colors" />
                         <input
                             type="text"
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
-                            className="w-full rounded-lg pl-9 pr-4 py-2 border-gray-300 bg-white placeholder:text-gray-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-neutral-600 dark:bg-neutral-900 dark:text-white dark:focus:border-indigo-400 sm:text-sm border outline-none transition-all"
-                            placeholder="Search branches..."
+                            className="w-full rounded-xl pl-11 pr-4 py-3 bg-slate-950/50 border border-slate-800 text-white placeholder:text-slate-600 focus:border-cyan-500/50 focus:ring-4 focus:ring-cyan-500/5 outline-none transition-all text-sm"
+                            placeholder="Find a branch..."
                             autoFocus
                         />
                     </div>
@@ -98,19 +103,22 @@ export function BranchModal({
                                         No branches found
                                     </div>
                                 ) : (
-                                    <ul className="divide-y divide-gray-100 dark:divide-neutral-700/50">
+                                    <ul className="divide-y divide-slate-800/50">
                                         {filteredBranches.map((branch) => (
                                             <li key={branch}>
                                                 <button
                                                     onClick={() => handleCheckout(branch)}
-                                                    className={`w-full text-left px-4 py-3 text-sm hover:bg-white dark:hover:bg-neutral-800 transition-colors flex items-center gap-2 group ${currentBranch === branch ? 'bg-indigo-50/50 dark:bg-indigo-900/10 text-indigo-700 dark:text-indigo-400 font-medium' : 'text-gray-700 dark:text-gray-300'}`}
+                                                    className={`w-full text-left px-5 py-4 text-sm hover:bg-slate-800/40 transition-all flex items-center gap-3 group relative ${currentBranch === branch ? 'bg-indigo-500/5 text-indigo-400 font-bold' : 'text-slate-300 hover:text-white'}`}
                                                 >
-                                                    <GitBranch className={`h-4 w-4 ${currentBranch === branch ? 'text-indigo-500' : 'text-gray-400 group-hover:text-indigo-500 transition-colors'}`} />
+                                                    <GitBranch className={`h-4 w-4 ${currentBranch === branch ? 'text-indigo-400' : 'text-slate-600 group-hover:text-indigo-400 transition-colors'}`} />
                                                     <span className="truncate">{branch}</span>
                                                     {currentBranch === branch && (
-                                                        <span className="ml-auto text-[10px] bg-indigo-100 text-indigo-600 dark:bg-indigo-900/50 dark:text-indigo-400 px-2 py-0.5 rounded-full font-semibold uppercase tracking-wider">
-                                                            Current
-                                                        </span>
+                                                        <>
+                                                            <div className="absolute left-0 top-0 bottom-0 w-1 bg-indigo-500 rounded-r shadow-[0_0_10px_rgba(99,102,241,0.5)]"></div>
+                                                            <span className="ml-auto text-[10px] bg-indigo-500/20 text-indigo-400 px-2.5 py-1 rounded-md font-black uppercase tracking-widest border border-indigo-500/20">
+                                                                Current
+                                                            </span>
+                                                        </>
                                                     )}
                                                 </button>
                                             </li>

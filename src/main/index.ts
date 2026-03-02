@@ -12,7 +12,8 @@ function createWindow(): BrowserWindow {
     height: 800,
     show: false,
     autoHideMenuBar: true,
-    ...(process.platform === 'linux' ? { icon } : {}),
+    icon,
+    title: "Vantage",
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       sandbox: false
@@ -44,7 +45,7 @@ function createWindow(): BrowserWindow {
 // Some APIs can only be used after this event occurs.
 app.whenReady().then(() => {
   // Set app user model id for windows
-  electronApp.setAppUserModelId('com.electron')
+  electronApp.setAppUserModelId('com.vantage.dashboard')
 
   // Default open or close DevTools by F12 in development
   // and ignore CommandOrControl + R in production.

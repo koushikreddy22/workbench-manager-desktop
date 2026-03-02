@@ -84,29 +84,29 @@ export function setupIpcHandlers() {
 
                     let gitBranch, gitStatus;
                     try {
-                        const { stdout } = await execAsync('git rev-parse --abbrev-ref HEAD', { cwd: fullPath });
-                        gitBranch = stdout.trim();
-
-                        // Detect local changes
-                        const { stdout: statusOutput } = await execAsync('git status --porcelain', { cwd: fullPath });
-                        const hasLocalChanges = statusOutput.trim().length > 0;
-
-                        // Detect ahead/behind
-                        let ahead = 0, behind = 0;
-                        try {
-                            // Fetching in the background might be too slow for get-services, 
-                            // so we rely on the last fetched state.
-                            const { stdout: countOutput } = await execAsync('git rev-list --left-right --count HEAD...@{u}', { cwd: fullPath });
-                            const parts = countOutput.trim().split(/\s+/);
-                            if (parts.length === 2) { 
-                                ahead = parseInt(parts[0], 10); 
-                                behind = parseInt(parts[1], 10); 
-                            }
-                        } catch (e) {
-                            // Upstream might not be set, ignore
-                        }
+                        const { stdout: statusOutput } = await execAsync('git status --branch --porcelain', { cwd: fullPath });
+                        const lines = statusOutput.split('\n');
+                        const branchLine = lines[0]; // e.g. "## main...origin/main [ahead 1, behind 2]"
                         
-                        gitStatus = { hasLocalChanges, ahead, behind };
+                        if (branchLine.startsWith('## ')) {
+                            const branchInfo = branchLine.substring(3);
+                            if (branchInfo.includes('...')) {
+                                gitBranch = branchInfo.split('...')[0];
+                                
+                                const aheadMatch = branchInfo.match(/ahead\s+(\d+)/);
+                                const behindMatch = branchInfo.match(/behind\s+(\d+)/);
+                                
+                                gitStatus = { 
+                                    ahead: aheadMatch ? parseInt(aheadMatch[1], 10) : 0, 
+                                    behind: behindMatch ? parseInt(behindMatch[1], 10) : 0,
+                                    hasLocalChanges: false 
+                                };
+                            } else {
+                                gitBranch = branchInfo.trim();
+                                gitStatus = { ahead: 0, behind: 0, hasLocalChanges: false };
+                            }
+                        }
+                        gitStatus.hasLocalChanges = lines.slice(1).some(line => line.trim().length > 0);
                     } catch (e) { }
 
                     const serviceStatus = await processManager.getServiceStatus(fullPath);
@@ -190,9 +190,10 @@ export function setupIpcHandlers() {
             if (action === 'checkout') await execAsync(`git checkout ${branch}`, { cwd: repoPath });
             else if (action === 'pull') await execAsync('git pull', { cwd: repoPath });
             else if (action === 'get-branches') {
-                const { stdout } = await execAsync('git branch -a', { cwd: repoPath });
+                // Highly optimized branch listing for large repositories
+                const { stdout } = await execAsync('git for-each-ref --format="%(refname:short)" refs/heads/ refs/remotes/origin/', { cwd: repoPath });
                 const branches = stdout.split('\n')
-                    .map(b => b.trim().replace('* ', '').replace('remotes/origin/', ''))
+                    .map(b => b.trim().replace('origin/', ''))
                     .filter(b => b && !b.includes('HEAD'));
                 return { branches: Array.from(new Set(branches)) };
             }

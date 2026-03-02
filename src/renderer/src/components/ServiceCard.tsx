@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
-import { Play, Square, FileText, GitBranch, MoreVertical, Download, Settings, RefreshCw, Wrench, Rocket, Code, ArrowUp, ArrowDown } from "lucide-react";
+import { Play, Square, FileText, GitBranch, MoreVertical, Download, Settings, RefreshCw, Wrench, Rocket, Code, ArrowUp, ArrowDown, FolderOpen } from "lucide-react";
 import { cn } from "../lib/utils";
 
 interface GitStatus {
@@ -83,22 +83,22 @@ export function ServiceCard({ name, path, status, mode, port, gitBranch, gitStat
 
     return (
         <div className={cn(
-            "group relative rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition-all hover:shadow-md dark:border-neutral-700 dark:bg-neutral-800",
+            "group relative rounded-2xl border border-slate-800/50 bg-slate-900/40 p-6 shadow-2xl backdrop-blur-md transition-all duration-300 hover:border-cyan-500/30 hover:shadow-cyan-500/10 hover:bg-slate-900/60",
             layout === 'list' ? "flex items-center gap-6" : "block"
         )}>
             <div className={cn(
-                "flex items-start justify-between gap-3",
-                layout === 'list' ? "w-1/4 shrink-0 mb-0" : "mb-4"
+                "flex items-start justify-between gap-4",
+                layout === 'list' ? "w-1/4 shrink-0 mb-0" : "mb-5"
             )}>
-                <div className="flex items-center gap-2.5 min-w-0 pt-1">
-                    <div className={cn("h-2.5 w-2.5 shrink-0 rounded-full", statusColor)} />
-                    <h3 className="text-base font-semibold text-gray-900 dark:text-white truncate" title={name}>
+                <div className="flex items-center gap-3 min-w-0">
+                    <div className={cn("h-3 w-3 shrink-0 rounded-full shadow-[0_0_8px_rgba(0,0,0,0.5)]", statusColor)} />
+                    <h3 className="text-lg font-bold text-white truncate group-hover:text-cyan-400 transition-colors" title={name}>
                         {name}
                     </h3>
                     {mode && status === "running" && (
                         <span className={cn(
-                            "text-[10px] px-1.5 py-0.5 rounded font-bold uppercase tracking-wider ml-1",
-                            mode === 'prod' ? "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400" : "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-400"
+                            "text-[10px] px-2 py-0.5 rounded-full font-black uppercase tracking-widest ml-1 shadow-sm",
+                            mode === 'prod' ? "bg-amber-500/20 text-amber-400 border border-amber-500/30" : "bg-cyan-500/20 text-cyan-400 border border-cyan-500/30"
                         )}>
                             {mode}
                         </span>
@@ -123,51 +123,51 @@ export function ServiceCard({ name, path, status, mode, port, gitBranch, gitStat
                         {menuOpen && createPortal(
                             <div
                                 onMouseDown={(e) => e.stopPropagation()}
-                                className="fixed z-50 w-56 rounded-md border border-gray-200 bg-white shadow-xl dark:border-neutral-700 dark:bg-neutral-800 py-1"
+                                className="fixed z-50 w-56 rounded-xl border border-slate-700/50 bg-slate-900 shadow-2xl backdrop-blur-xl animate-in fade-in zoom-in-95 duration-200 overflow-hidden"
                                 style={{
                                     top: menuPosition.top,
                                     ...(menuPosition.left !== 'auto' ? { left: menuPosition.left } : {}),
                                     ...(menuPosition.right !== 'auto' ? { right: menuPosition.right } : {})
                                 }}
                             >
-                                <div className="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider dark:text-gray-400">
-                                    Git Operations
+                                <div className="px-3 py-2 text-[10px] font-black text-cyan-500/60 uppercase tracking-widest bg-slate-950/40">
+                                    Vantage Tools
                                 </div>
                                 <button
                                     onClick={() => handleAction('service-settings')}
-                                    className="flex w-full items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-neutral-700"
+                                    className="flex w-full items-center gap-2.5 px-4 py-2.5 text-sm text-slate-300 hover:bg-slate-800 hover:text-white transition-all underline-offset-4"
                                 >
-                                    <Settings className="h-4 w-4" /> Settings
+                                    <Settings className="h-4 w-4 text-slate-500" /> Channel Config
                                 </button>
 
                                 <button
                                     onClick={() => handleAction('git-checkout-modal')}
-                                    className="flex w-full items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-neutral-700"
+                                    className="flex w-full items-center gap-2.5 px-4 py-2.5 text-sm text-slate-300 hover:bg-slate-800 hover:text-white transition-all"
                                 >
-                                    <GitBranch className="h-4 w-4" /> Switch Branch...
+                                    <GitBranch className="h-4 w-4 text-slate-500" /> Switch Branch...
                                 </button>
 
-                                <div className="border-t border-gray-100 dark:border-neutral-700 my-1"></div>
-                                <div className="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider dark:text-gray-400">
-                                    NPM Commands
+                                <div className="border-t border-slate-800/80 my-1"></div>
+                                <div className="px-3 py-2 text-[10px] font-black text-cyan-500/60 uppercase tracking-widest bg-slate-950/40">
+                                    NPM Utility
                                 </div>
                                 <button
                                     onClick={() => handleAction('npm-install')}
-                                    className="flex w-full items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-neutral-700"
+                                    className="flex w-full items-center gap-2.5 px-4 py-2.5 text-sm text-slate-300 hover:bg-slate-800 hover:text-white transition-all"
                                 >
-                                    <Download className="h-4 w-4" /> Install
+                                    <Download className="h-4 w-4 text-slate-500" /> Install
                                 </button>
                                 <button
                                     onClick={() => handleAction('npm-install-legacy')}
-                                    className="flex w-full items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-neutral-700"
+                                    className="flex w-full items-center gap-2.5 px-4 py-2.5 text-sm text-slate-300 hover:bg-slate-800 hover:text-white transition-all"
                                 >
-                                    <Settings className="h-4 w-4" /> Install (Legacy)
+                                    <Settings className="h-4 w-4 text-slate-500" /> Legacy Install
                                 </button>
                                 <button
                                     onClick={() => handleAction('npm-start-prod')}
-                                    className="flex w-full items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-neutral-700"
+                                    className="flex w-full items-center gap-2.5 px-4 py-2.5 text-sm text-slate-300 hover:bg-slate-800 hover:text-white transition-all"
                                 >
-                                    <Play className="h-4 w-4" /> Run Prod (start)
+                                    <Play className="h-4 w-4 text-slate-500" /> Production Start
                                 </button>
                             </div>,
                             document.body
@@ -175,27 +175,36 @@ export function ServiceCard({ name, path, status, mode, port, gitBranch, gitStat
                     </div>
 
                     {layout === 'grid' && (
-                        <button
-                            onClick={() => handleAction('npm-build')}
-                            disabled={actionLoading === 'npm-build'}
-                            className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-neutral-700 transition-colors"
-                            title="Build Service"
-                        >
-                            {actionLoading === 'npm-build' && (
-                                <div className="absolute inset-0 rounded-full border-2 border-indigo-500 border-t-transparent animate-spin" />
-                            )}
-                            <Wrench className="h-4 w-4" />
-                        </button>
+                        <div className="flex items-center gap-1.5 ml-2">
+                            <button
+                                onClick={() => onToggle(path, "log")}
+                                className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-800/40 text-slate-400 hover:bg-slate-700/60 hover:text-white transition-all border border-slate-700/50"
+                                title="View Logs"
+                            >
+                                <FileText className="h-4 w-4" />
+                            </button>
+                            <button
+                                onClick={() => handleAction('npm-build')}
+                                disabled={actionLoading === 'npm-build'}
+                                className="relative flex h-8 w-8 items-center justify-center rounded-full bg-slate-800/40 text-slate-400 hover:bg-slate-700/60 hover:text-cyan-400 transition-all border border-slate-700/50"
+                                title="Build Service"
+                            >
+                                {actionLoading === 'npm-build' && (
+                                    <div className="absolute inset-0 rounded-full border-2 border-cyan-500 border-t-transparent animate-spin" />
+                                )}
+                                <Wrench className="h-4 w-4" />
+                            </button>
+                        </div>
                     )}
 
                     <button
                         onClick={() => onOpenIde(path)}
                         disabled={isIdeLoading}
-                        className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-neutral-700 transition-colors"
+                        className="relative flex h-8 w-8 items-center justify-center rounded-full bg-slate-800/40 text-slate-400 hover:bg-slate-700/60 hover:text-cyan-400 transition-all border border-slate-700/50"
                         title="Open in IDE"
                     >
                         {isIdeLoading && (
-                            <div className="absolute inset-0 rounded-full border-2 border-indigo-500 border-t-transparent animate-spin" />
+                            <div className="absolute inset-0 rounded-full border-2 border-cyan-500 border-t-transparent animate-spin" />
                         )}
                         <Code className="h-4 w-4" />
                     </button>
@@ -207,58 +216,56 @@ export function ServiceCard({ name, path, status, mode, port, gitBranch, gitStat
                 layout === 'list' ? "flex items-center gap-6 space-y-0 flex-1 min-w-0" : ""
             )}>
                 {layout === 'grid' && (
-                    <div className="flex items-center justify-between text-sm">
-                        <span className="text-gray-500 dark:text-gray-400">Path</span>
-                        <span className="font-mono text-gray-900 dark:text-gray-200 truncate">{path.split(/[\/\\]/).pop()}</span>
+                    <div className="flex items-center justify-between text-[11px] mt-4 bg-slate-950/60 rounded-xl p-3 border border-slate-800/80 text-slate-400 group-hover:border-cyan-500/40 transition-all shadow-inner">
+                        <span className="opacity-70 flex items-center gap-2 font-bold uppercase tracking-tighter"><FolderOpen className="h-3.5 w-3.5 text-cyan-500" /> Path</span>
+                        <span className="font-mono text-cyan-400 truncate ml-4 drop-shadow-[0_0_10px_rgba(34,211,238,0.4)] font-bold">{path.split(/[\/\\]/).pop()}</span>
                     </div>
                 )}
 
                 {port && (
                     <div className={cn(
                         "flex items-center justify-between text-sm",
-                        layout === 'list' ? "shrink-0 w-32" : ""
+                        layout === 'list' ? "shrink-0 w-40" : ""
                     )}>
-                        {layout === 'grid' && <span className="text-gray-500 dark:text-gray-400">Local URL</span>}
+                        {layout === 'grid' && <span className="text-slate-500">Network URL</span>}
                         <a
                             href={`http://localhost:${port}`}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="font-mono text-indigo-600 hover:underline dark:text-indigo-400"
+                            className="font-mono text-cyan-400 hover:text-cyan-300 hover:underline transition-colors"
                         >
-                            http://localhost:{port}
+                            localhost:{port}
                         </a>
                     </div>
                 )}
 
-                {!port && layout === 'list' && <div className="shrink-0 w-32"></div>}
-
                 {gitBranch && (
                     <div className={cn(
                         "flex items-center gap-2",
-                        layout === 'grid' ? "mt-4 pt-4 border-t border-gray-100 dark:border-neutral-700" : "flex-1 min-w-0 justify-end"
+                        layout === 'grid' ? "mt-4" : "flex-1 min-w-0 justify-end"
                     )}>
                         <button
                             onClick={() => handleAction('git-checkout-modal')}
-                            className="flex items-center gap-1.5 text-xs text-indigo-600 dark:text-indigo-400 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-900/30 dark:hover:bg-indigo-900/50 px-2.5 py-1 rounded-full border border-indigo-100 dark:border-indigo-800 font-mono truncate max-w-[150px] transition-colors cursor-pointer text-left"
+                            className="flex items-center gap-2 text-[11px] text-cyan-400 bg-cyan-500/10 hover:bg-cyan-500/20 px-3 py-1.5 rounded-lg border border-cyan-500/20 font-mono truncate max-w-[180px] transition-all cursor-pointer text-left"
                             title="Switch Branch"
                         >
-                            <GitBranch className="h-3 w-3 shrink-0" />
+                            <GitBranch className="h-3.5 w-3.5 shrink-0 opacity-70" />
                             <span className="truncate">{gitBranch}</span>
                             {gitStatus?.hasLocalChanges && (
-                                <span className="flex h-1.5 w-1.5 rounded-full bg-orange-500 ml-0.5" title="Local Changes" />
+                                <span className="flex h-2 w-2 rounded-full bg-orange-500 animate-pulse ml-1" title="Local Changes" />
                             )}
                         </button>
 
                         {gitStatus && (gitStatus.ahead > 0 || gitStatus.behind > 0) && (
                             <div className="flex items-center gap-1.5">
                                 {gitStatus.ahead > 0 && (
-                                    <div className="flex items-center gap-0.5 text-[10px] font-bold text-green-600 bg-green-50 dark:bg-green-900/20 dark:text-green-400 px-1.5 py-0.5 rounded border border-green-100 dark:border-green-900/40" title={`${gitStatus.ahead} commits ahead`}>
+                                    <div className="flex items-center gap-0.5 text-[10px] font-bold text-green-500 bg-green-500/10 border border-green-500/20 px-1.5 py-0.5 rounded shadow-[0_0_8px_rgba(34,197,94,0.1)]" title={`${gitStatus.ahead} ahead`}>
                                         <ArrowUp className="h-2.5 w-2.5" />
                                         {gitStatus.ahead}
                                     </div>
                                 )}
                                 {gitStatus.behind > 0 && (
-                                    <div className="flex items-center gap-0.5 text-[10px] font-bold text-red-600 bg-red-50 dark:bg-red-900/20 dark:text-red-400 px-1.5 py-0.5 rounded border border-red-100 dark:border-red-900/40" title={`${gitStatus.behind} commits behind`}>
+                                    <div className="flex items-center gap-0.5 text-[10px] font-bold text-red-500 bg-red-500/10 border border-red-500/20 px-1.5 py-0.5 rounded shadow-[0_0_8px_rgba(239,68,68,0.1)]" title={`${gitStatus.behind} behind`}>
                                         <ArrowDown className="h-2.5 w-2.5" />
                                         {gitStatus.behind}
                                     </div>
@@ -270,12 +277,46 @@ export function ServiceCard({ name, path, status, mode, port, gitBranch, gitStat
                             <button
                                 onClick={() => handleAction('git-pull')}
                                 disabled={actionLoading === 'git-pull'}
-                                className="flex h-7 w-7 items-center justify-center rounded bg-gray-100 text-gray-500 hover:bg-gray-200 hover:text-gray-700 dark:bg-neutral-700 dark:text-gray-400 dark:hover:bg-neutral-600 dark:hover:text-gray-200 transition-colors ml-auto shrink-0"
+                                className="flex h-8 w-8 items-center justify-center rounded bg-slate-800/40 text-slate-400 hover:bg-slate-700/60 hover:text-cyan-400 transition-all border border-slate-700/50 ml-auto shrink-0"
                                 title="Pull Latest"
                             >
-                                <RefreshCw className={cn("h-3.5 w-3.5", actionLoading === 'git-pull' && "animate-spin")} />
+                                <RefreshCw className={cn("h-4 w-4", actionLoading === 'git-pull' && "animate-spin")} />
                             </button>
                         )}
+                    </div>
+                )}
+
+                {layout === 'grid' && (
+                    <div className="flex items-center gap-2 mt-5 pt-4 border-t border-slate-800/50">
+                        <button
+                            onClick={() => onToggle(path, status === "running" ? "stop" : "start", "dev")}
+                            className={cn(
+                                "flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-xs font-bold transition-all border",
+                                status === "running" && mode === "dev"
+                                    ? "bg-red-500/10 text-red-500 border-red-500/20 hover:bg-red-500/20"
+                                    : (status === "running" && mode === "prod")
+                                        ? "bg-slate-800/50 text-slate-600 border-transparent cursor-not-allowed opacity-40"
+                                        : "bg-cyan-500/10 text-cyan-400 border-cyan-500/20 hover:bg-cyan-500/20"
+                            )}
+                            disabled={status === "running" && mode === "prod"}
+                        >
+                            {status === "running" && mode === "dev" ? <><Square className="h-3.5 w-3.5" /> Stop</> : <><Play className="h-3.5 w-3.5" /> Dev Mode</>}
+                        </button>
+
+                        <button
+                            onClick={() => onToggle(path, status === "running" ? "stop" : "start", "prod")}
+                            className={cn(
+                                "flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-xs font-bold transition-all border",
+                                status === "running" && mode === "prod"
+                                    ? "bg-red-500/10 text-red-500 border-red-500/20 hover:bg-red-500/20"
+                                    : (status === "running" && mode === "dev")
+                                        ? "bg-slate-800/50 text-slate-600 border-transparent cursor-not-allowed opacity-40"
+                                        : "bg-amber-500/10 text-amber-500 border-amber-500/20 hover:bg-amber-500/20"
+                            )}
+                            disabled={status === "running" && mode === "dev"}
+                        >
+                            {status === "running" && mode === "prod" ? <><Square className="h-3.5 w-3.5" /> Stop</> : <><Rocket className="h-3.5 w-3.5" /> Prod</>}
+                        </button>
                     </div>
                 )}
             </div>

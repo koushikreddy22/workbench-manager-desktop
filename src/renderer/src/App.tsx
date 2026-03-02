@@ -5,7 +5,8 @@ import { GroupModal } from "./components/GroupModal";
 import { LogModal } from "./components/LogModal";
 import { BranchModal } from "./components/BranchModal";
 import { ServiceSettingsModal } from "./components/ServiceSettingsModal";
-import { Loader2, RefreshCw, FolderOpen, Settings, Plus, Code, LayoutGrid, List } from "lucide-react";
+import { Loader2, RefreshCw, FolderOpen, Plus, Code, LayoutGrid, List, Search } from "lucide-react";
+import logo from "../../../resources/icon.png";
 
 interface Service {
   name: string;
@@ -295,68 +296,81 @@ function App() {
   }
 
   return (
-    <main className="min-h-screen bg-gray-50/50 p-8 pt-12 dark:bg-neutral-900">
-      <div className="mx-auto max-w-7xl">
-        <header className="mb-12 flex items-center justify-between pb-6 border-b border-gray-200 dark:border-neutral-800">
-          <div>
-            <h1 className="text-4xl font-extrabold tracking-tight text-gray-900 dark:text-white sm:text-5xl mb-2">
-              Service <span className="text-indigo-600 dark:text-indigo-400">Dashboard</span>
-            </h1>
-            <p className="text-lg text-gray-500 dark:text-gray-400 font-medium font-mono text-sm max-w-lg truncate" title={workbenchPath}>
-              {workbenchPath}
-            </p>
+    <main className="min-h-screen bg-[#0B0F19] p-8 pt-12 text-slate-200 relative overflow-x-hidden bg-vantage-mesh">
+      <div className="fixed inset-0 z-0 pointer-events-none flex items-center justify-center overflow-hidden opacity-[0.08] dark:opacity-[0.12]">
+        <img src={logo} alt="" className="w-2/3 min-w-[800px] h-auto object-contain blur-[2px] transition-all duration-1000" />
+      </div>
+      <div className="mx-auto max-w-7xl relative z-10 transition-all">
+        <header className="mb-12 flex items-center justify-between pb-8 border-b border-slate-800/60 backdrop-blur-sm">
+          <div className="flex items-center gap-6">
+            <div className="w-16 h-16 rounded-2xl bg-slate-900/40 backdrop-blur-md shadow-2xl border border-slate-700/50 p-2.5 flex items-center justify-center transform hover:scale-105 transition-all">
+              <img src={logo} alt="Vantage" className="w-full h-full object-contain drop-shadow-[0_0_15px_rgba(14,165,233,0.4)]" />
+            </div>
+            <div>
+              <h1 className="text-5xl font-black tracking-tight text-white mb-2">
+                <span className="bg-gradient-to-r from-indigo-400 via-cyan-400 to-sky-400 bg-clip-text text-transparent">Vantage</span> Dashboard
+              </h1>
+              <p className="text-slate-400 font-medium font-mono text-xs max-w-lg truncate px-1 border-l-2 border-cyan-500/50 ml-0.5" title={workbenchPath}>
+                {workbenchPath}
+              </p>
+            </div>
           </div>
 
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2 bg-white dark:bg-neutral-800 border border-gray-200 dark:border-neutral-700 rounded-lg px-3 py-1.5 shadow-sm">
-              <Code className="h-4 w-4 text-gray-400" />
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 bg-slate-900/60 border border-slate-700/50 rounded-xl px-4 py-2.5 shadow-inner backdrop-blur-md group hover:border-cyan-500/30 transition-all">
+              <Code className="h-4 w-4 text-slate-500 group-hover:text-cyan-400" />
               <select
                 value={defaultIde}
                 onChange={(e) => handleSetIde(e.target.value)}
-                className="bg-transparent text-sm font-medium text-gray-600 dark:text-gray-300 outline-none cursor-pointer"
+                className="bg-transparent text-sm font-bold text-slate-300 outline-none cursor-pointer appearance-none pr-1 focus:text-cyan-400 transition-colors"
+                title="Target IDE"
               >
                 {availableIdes.length > 0 ? (
                   availableIdes.map(ide => (
-                    <option key={ide.id} value={ide.id}>{ide.name}</option>
+                    <option key={ide.id} value={ide.id} className="bg-slate-900 text-white font-sans">{ide.name}</option>
                   ))
                 ) : (
-                  <option value="">No IDEs found</option>
+                  <option value="" className="bg-slate-900">No IDEs</option>
                 )}
               </select>
             </div>
+
             <button
               onClick={openCreateGroupModal}
-              className="flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 dark:hover:bg-indigo-500 transition-all"
+              className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-cyan-600 px-5 py-2.5 text-sm font-black text-white shadow-[0_0_20px_rgba(99,102,241,0.2)] hover:from-indigo-500 hover:to-cyan-500 hover:scale-[1.02] transition-all active:scale-95"
             >
-              <Plus className="h-4 w-4" />
-              New Group
+              <Plus className="h-4 w-4 stroke-[3px]" />
+              New Cluster
             </button>
+
             <button
               onClick={handleSelectWorkbench}
-              className="flex items-center gap-2 rounded-lg bg-white px-4 py-2 border border-gray-200 text-sm font-medium text-gray-600 shadow-sm hover:bg-gray-50 dark:bg-neutral-800 dark:border-neutral-700 dark:text-gray-300 dark:hover:bg-neutral-700 transition-all"
+              className="flex items-center gap-2 rounded-xl bg-slate-800/40 px-5 py-2.5 border border-slate-700/50 text-sm font-bold text-slate-300 shadow-xl hover:bg-slate-700/60 hover:text-white hover:border-slate-500 transition-all active:scale-95"
             >
-              <Settings className="h-4 w-4" />
-              Change Workbench
+              <FolderOpen className="h-4 w-4 text-cyan-500" />
+              Switch Workspace
             </button>
+
             <button
               onClick={handleRefresh}
-              className={`flex items-center justify-center rounded-lg bg-white p-2 border border-gray-200 text-gray-600 shadow-sm hover:bg-gray-50 dark:bg-neutral-800 dark:border-neutral-700 dark:text-gray-300 dark:hover:bg-neutral-700 transition-all ${isRefreshing ? "opacity-50" : ""}`}
+              className={`flex items-center justify-center rounded-xl bg-slate-900/60 p-2.5 border border-slate-700/50 text-slate-400 shadow-xl hover:bg-slate-800 hover:text-cyan-400 transition-all ${isRefreshing ? "opacity-50" : ""} active:scale-95`}
               disabled={isRefreshing}
+              title="Rescan Channels"
             >
               <RefreshCw className={`h-5 w-5 ${isRefreshing ? "animate-spin" : ""}`} />
             </button>
 
-            <div className="flex bg-gray-100 dark:bg-neutral-800 p-1 rounded-lg border border-gray-200 dark:border-neutral-700 ml-4">
+            <div className="flex bg-slate-900/60 p-1 rounded-xl border border-slate-700/50 ml-4 shadow-inner backdrop-blur-md">
               <button
                 onClick={() => setViewMode('grid')}
-                className={`p-1.5 rounded-md transition-all ${viewMode === 'grid' ? 'bg-white dark:bg-neutral-700 text-indigo-600 dark:text-indigo-400 shadow-sm' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'}`}
+                className={`p-2 rounded-lg transition-all ${viewMode === 'grid' ? 'bg-cyan-500/20 text-cyan-400 shadow-[0_0_15px_rgba(34,211,238,0.1)] border border-cyan-500/20' : 'text-slate-500 hover:text-slate-300 hover:bg-slate-800/40'}`}
                 title="Grid View"
               >
                 <LayoutGrid className="h-4 w-4" />
               </button>
               <button
                 onClick={() => setViewMode('list')}
-                className={`p-1.5 rounded-md transition-all ${viewMode === 'list' ? 'bg-white dark:bg-neutral-700 text-indigo-600 dark:text-indigo-400 shadow-sm' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'}`}
+                className={`p-2 rounded-lg transition-all ${viewMode === 'list' ? 'bg-cyan-500/20 text-cyan-400 shadow-[0_0_15px_rgba(34,211,238,0.1)] border border-cyan-500/20' : 'text-slate-500 hover:text-slate-300 hover:bg-slate-800/40'}`}
                 title="List View"
               >
                 <List className="h-4 w-4" />
@@ -368,11 +382,11 @@ function App() {
         <div className="space-y-12">
           {groups.length > 0 && (
             <section>
-              <h2 className="text-2xl font-bold tracking-tight text-gray-800 dark:text-gray-100 mb-6 flex items-center gap-3">
-                <span className="bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300 py-1 px-3 rounded-md text-sm">
+              <h2 className="text-2xl font-bold tracking-tight text-white mb-8 flex items-center gap-4">
+                <span className="bg-gradient-to-br from-indigo-500 to-cyan-500 text-white py-1.5 px-4 rounded-xl text-sm shadow-lg shadow-indigo-500/20">
                   {groups.length}
                 </span>
-                Service Groups
+                Project Clusters
               </h2>
               <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                 {groups.map(group => (
@@ -391,12 +405,12 @@ function App() {
           )}
 
           <section>
-            <div className="mb-6 flex items-center justify-between">
-              <h2 className="text-2xl font-bold tracking-tight text-gray-800 dark:text-gray-100 flex items-center gap-3">
-                <span className="bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300 py-1 px-3 rounded-md text-sm">
+            <div className="mb-8 flex items-center justify-between">
+              <h2 className="text-2xl font-bold tracking-tight text-white flex items-center gap-4">
+                <span className="bg-gradient-to-br from-cyan-500 to-sky-500 text-white py-1.5 px-4 rounded-xl text-sm shadow-lg shadow-cyan-500/20">
                   {services.length}
                 </span>
-                Discovered Services
+                Active Channels
               </h2>
             </div>
 
@@ -407,9 +421,18 @@ function App() {
                 ))}
               </div>
             ) : services.length === 0 ? (
-              <div className="rounded-2xl border-2 border-dashed border-gray-300 p-12 text-center dark:border-neutral-700">
-                <p className="text-gray-500 dark:text-gray-400 text-lg">No services found in the current workbench.</p>
-                <button onClick={handleSelectWorkbench} className="mt-4 text-indigo-600 hover:underline">Select a different folder</button>
+              <div className="rounded-3xl border-2 border-dashed border-slate-800 p-20 text-center bg-slate-900/20 backdrop-blur-sm shadow-inner group hover:border-cyan-500/30 transition-all">
+                <div className="mx-auto w-20 h-20 rounded-2xl bg-slate-800/50 flex items-center justify-center mb-6 border border-slate-700/50 group-hover:bg-cyan-500/10 group-hover:border-cyan-500/20 transition-all">
+                  <Search className="h-10 w-10 text-slate-500 group-hover:text-cyan-400 transition-all" />
+                </div>
+                <h3 className="text-xl font-bold text-white mb-2">No Active Channels Found</h3>
+                <p className="text-slate-500 max-w-sm mx-auto mb-8">This workspace doesn't seem to contain any services. Select a different entry point to begin monitoring.</p>
+                <button
+                  onClick={handleSelectWorkbench}
+                  className="px-6 py-3 rounded-xl bg-cyan-500 text-slate-950 font-black text-sm hover:bg-cyan-400 shadow-[0_0_20px_rgba(34,211,238,0.3)] transition-all active:scale-95"
+                >
+                  Change Workspace
+                </button>
               </div>
             ) : (
               <div className={viewMode === 'grid' ? "grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" : "flex flex-col gap-4"}>

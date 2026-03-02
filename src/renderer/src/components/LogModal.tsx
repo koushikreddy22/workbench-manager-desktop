@@ -1,4 +1,4 @@
-import { X, Terminal as TerminalIcon, ExternalLink } from "lucide-react";
+import { X, Terminal as TerminalIcon, ExternalLink, Loader2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 interface LogModalProps {
@@ -45,29 +45,36 @@ export function LogModal({ isOpen, onClose, serviceName, servicePath }: LogModal
     };
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-            <div className="flex h-[80vh] w-full max-w-4xl flex-col overflow-hidden rounded-xl bg-gray-900 shadow-2xl">
-                <div className="flex items-center justify-between border-b border-gray-800 bg-gray-950 px-6 py-4">
-                    <div className="flex items-center gap-3 text-gray-200">
-                        <TerminalIcon className="h-5 w-5 text-indigo-400" />
-                        <h2 className="text-lg font-semibold">{serviceName} Logs</h2>
-                        <span className="rounded-full bg-gray-800 px-3 py-1 text-xs text-gray-400 font-mono">
-                            {servicePath.split(/[\/\\]/).pop()}
-                        </span>
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-in fade-in duration-300">
+            <div className="flex h-[85vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl bg-slate-900 border border-slate-700/50 shadow-2xl relative">
+                <div className="absolute top-0 right-0 p-12 opacity-5 pointer-events-none">
+                    <TerminalIcon className="h-48 w-48 text-cyan-500" />
+                </div>
+                <div className="relative z-10 flex items-center justify-between border-b border-slate-800/60 bg-slate-950/40 px-6 py-5 backdrop-blur-md">
+                    <div className="flex items-center gap-4 text-white">
+                        <div className="p-2.5 rounded-xl bg-cyan-500/10 border border-cyan-500/20">
+                            <TerminalIcon className="h-6 w-6 text-cyan-400" />
+                        </div>
+                        <div>
+                            <h2 className="text-xl font-black">{serviceName} Logs</h2>
+                            <p className="text-[10px] text-cyan-500/60 font-mono tracking-widest uppercase mt-0.5">
+                                Channel: {servicePath.split(/[\/\\]/).pop()}
+                            </p>
+                        </div>
                     </div>
                     <div className="flex items-center gap-2">
                         <button
                             onClick={handleOpenExternalTerminal}
                             disabled={isLaunching}
-                            className="flex items-center gap-1.5 rounded-md bg-indigo-600/20 px-3 py-1.5 text-sm font-medium text-indigo-400 hover:bg-indigo-600/30 transition-colors border border-indigo-500/30 disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="flex items-center gap-2 rounded-xl bg-cyan-500/10 px-4 py-2 text-sm font-bold text-cyan-400 hover:bg-cyan-500/20 transition-all border border-cyan-500/20 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-cyan-500/5"
                             title="Open in OS Terminal"
                         >
                             {isLaunching ? (
-                                <div className="h-4 w-4 rounded-full border-2 border-indigo-400 border-t-transparent animate-spin" />
+                                <Loader2 className="h-4 w-4 animate-spin" />
                             ) : (
                                 <ExternalLink className="h-4 w-4" />
                             )}
-                            <span>{isLaunching ? 'Launching...' : 'Open OS Terminal'}</span>
+                            <span>{isLaunching ? 'Launching...' : 'OS Terminal'}</span>
                         </button>
                         <button
                             onClick={onClose}
@@ -78,7 +85,7 @@ export function LogModal({ isOpen, onClose, serviceName, servicePath }: LogModal
                     </div>
                 </div>
 
-                <div className="flex-1 overflow-y-auto bg-[#0d1117] p-6 font-mono text-sm leading-relaxed text-gray-300">
+                <div className="flex-1 overflow-y-auto bg-slate-950/80 p-8 font-mono text-sm leading-relaxed text-slate-300 selection:bg-cyan-500/30">
                     {logs.length === 0 ? (
                         <div className="flex h-full items-center justify-center text-gray-600">
                             No logs available yet...

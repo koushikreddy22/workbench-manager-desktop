@@ -51,23 +51,26 @@ export function ServiceSettingsModal({
     };
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-            <div className="w-full max-w-md bg-white dark:bg-neutral-800 rounded-xl shadow-2xl overflow-hidden border border-gray-100 dark:border-neutral-700">
-                <div className="flex items-center justify-between p-4 border-b border-gray-100 dark:border-neutral-700/50 bg-gray-50/50 dark:bg-neutral-800/50">
-                    <div className="flex items-center gap-3">
-                        <div className="p-2 bg-indigo-100 dark:bg-indigo-900/40 rounded-lg text-indigo-600 dark:text-indigo-400">
-                            <Command className="h-5 w-5" />
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-in fade-in duration-300">
+            <div className="w-full max-w-md bg-slate-900 rounded-2xl shadow-2xl overflow-hidden border border-slate-700/50 relative">
+                <div className="absolute top-0 right-0 p-8 opacity-5 pointer-events-none">
+                    <Command className="h-32 w-32 text-cyan-500" />
+                </div>
+                <div className="relative z-10 flex items-center justify-between p-6 border-b border-slate-800/60 bg-slate-950/40 backdrop-blur-md">
+                    <div className="flex items-center gap-4">
+                        <div className="p-2.5 bg-cyan-500/10 border border-cyan-500/20 rounded-xl text-cyan-400">
+                            <Command className="h-6 w-6" />
                         </div>
                         <div>
-                            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Service Settings</h2>
-                            <p className="text-xs text-gray-500 dark:text-gray-400 font-mono truncate max-w-[200px]">{serviceName}</p>
+                            <h2 className="text-xl font-black text-white">Channel Settings</h2>
+                            <p className="text-[10px] text-cyan-500/60 font-mono tracking-widest uppercase mt-0.5">{serviceName}</p>
                         </div>
                     </div>
                     <button
                         onClick={onClose}
-                        className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-neutral-700 dark:hover:text-gray-300 rounded-lg transition-colors"
+                        className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-all"
                     >
-                        <X className="h-5 w-5" />
+                        <X className="h-6 w-6" />
                     </button>
                 </div>
 
@@ -123,16 +126,16 @@ export function ServiceSettingsModal({
                     </div>
                 </div>
 
-                <div className="p-4 border-t border-gray-100 dark:border-neutral-700/50 bg-gray-50/50 dark:bg-neutral-800/50 flex justify-end gap-3">
+                <div className="relative z-10 p-6 border-t border-slate-800/60 bg-slate-950/40 backdrop-blur-md flex justify-end gap-3">
                     <button
                         onClick={onClose}
-                        className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-neutral-700 rounded-lg transition-colors"
+                        className="px-5 py-2.5 text-sm font-bold text-slate-300 hover:text-white hover:bg-slate-800 rounded-xl transition-all"
                     >
                         Cancel
                     </button>
                     <button
                         onClick={handleSave}
-                        className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors shadow-sm"
+                        className="flex items-center gap-2 px-6 py-2.5 text-sm font-black text-white bg-gradient-to-r from-indigo-600 to-cyan-600 hover:from-indigo-500 hover:to-cyan-500 rounded-xl transition-all shadow-xl shadow-indigo-600/20"
                     >
                         <Save className="h-4 w-4" />
                         Save Settings

@@ -1,5 +1,5 @@
-appId: com.electron.app
-productName: service-dashboard-desktop
+appId: com.vantage.dashboard
+productName: Vantage
 directories:
   buildResources: build
 files:
@@ -12,7 +12,7 @@ files:
 asarUnpack:
   - resources/**
 win:
-  executableName: service-dashboard-desktop
+  executableName: Vantage
 nsis:
   artifactName: ${name}-${version}-setup.${ext}
   shortcutName: ${productName}

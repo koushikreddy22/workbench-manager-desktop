@@ -1,6 +1,6 @@
-# service-dashboard-desktop
+# Vantage
 
-An Electron application with React and TypeScript
+A premium service management and monitoring dashboard.
 
 ## Recommended IDE Setup
 

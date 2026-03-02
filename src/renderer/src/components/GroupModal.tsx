@@ -64,14 +64,17 @@ export function GroupModal({
     };
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-            <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-2xl dark:bg-neutral-800 border border-gray-100 dark:border-neutral-700">
-                <div className="flex items-center justify-between mb-6">
-                    <h2 className="text-xl font-bold dark:text-white">
-                        {initialGroup ? "Edit Group" : "Create New Group"}
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-in fade-in duration-300">
+            <div className="w-full max-w-md rounded-2xl bg-slate-900 border border-slate-700/50 shadow-2xl p-8 relative overflow-hidden">
+                <div className="absolute top-0 right-0 p-8 opacity-5 pointer-events-none">
+                    <Trash2 className="h-32 w-32 text-red-500" />
+                </div>
+                <div className="relative z-10 flex items-center justify-between mb-8">
+                    <h2 className="text-2xl font-black text-white">
+                        {initialGroup ? "Modify" : "Create"} <span className="text-indigo-400">Cluster</span>
                     </h2>
-                    <button onClick={onClose} className="rounded-full p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-neutral-700 dark:hover:text-gray-200 transition-colors">
-                        <X className="h-5 w-5" />
+                    <button onClick={onClose} className="rounded-full p-2 text-slate-400 hover:bg-slate-800 hover:text-white transition-all">
+                        <X className="h-6 w-6" />
                     </button>
                 </div>
 
@@ -110,31 +113,31 @@ export function GroupModal({
                         </div>
                     </div>
 
-                    <div className="flex items-center justify-between pt-4 mt-2 border-t border-gray-100 dark:border-neutral-700/60">
+                    <div className="relative z-10 flex items-center justify-between pt-6 mt-4 border-t border-slate-800/60">
                         {initialGroup ? (
                             <button
                                 onClick={handleDelete}
-                                className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20 transition-colors"
+                                className="flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-bold text-red-400 bg-red-500/10 border border-red-500/20 hover:bg-red-500/20 transition-all"
                             >
                                 <Trash2 className="h-4 w-4" />
                                 Delete
                             </button>
                         ) : (
-                            <div className="w-20" /> /* spacer */
+                            <div className="w-20" />
                         )}
-                        <div className="flex gap-3">
+                        <div className="flex gap-4">
                             <button
                                 onClick={onClose}
-                                className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 dark:border-neutral-600 dark:bg-neutral-800 dark:text-gray-300 dark:hover:bg-neutral-700 transition-all"
+                                className="px-5 py-2.5 rounded-xl border border-slate-700 text-sm font-bold text-slate-300 hover:bg-slate-800 hover:text-white transition-all shadow-lg"
                             >
                                 Cancel
                             </button>
                             <button
                                 onClick={handleSave}
                                 disabled={!name.trim() || selectedPaths.length === 0}
-                                className="rounded-lg bg-indigo-600 px-5 py-2 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 dark:focus:ring-offset-neutral-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                                className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-cyan-600 text-sm font-black text-white shadow-xl shadow-indigo-600/20 hover:from-indigo-500 hover:to-cyan-500 disabled:opacity-30 disabled:grayscale transition-all"
                             >
-                                Save Group
+                                Save Cluster
                             </button>
                         </div>
                     </div>
