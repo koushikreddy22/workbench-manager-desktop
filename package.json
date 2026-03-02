@@ -1,10 +1,10 @@
 {
   "name": "vantage",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "A premium dashboard for service management and monitoring",
   "main": "./out/main/index.js",
-  "author": "example.com",
-  "homepage": "https://electron-vite.org",
+  "author": "koushikreddy22",
+  "homepage": "https://github.com/koushikreddy22/vantage",
   "scripts": {
     "format": "prettier --write .",
     "lint": "eslint --cache .",
