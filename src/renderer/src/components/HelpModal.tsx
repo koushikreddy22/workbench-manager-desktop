@@ -1,4 +1,4 @@
-import { X, BookOpen, Rocket, Play, Square, Settings, GitBranch, Terminal, FolderOpen, LayoutGrid, Wrench, Code } from "lucide-react";
+import { X, BookOpen, Rocket, Play, Settings, GitBranch, Terminal, FolderOpen, LayoutGrid, Wrench, Code } from "lucide-react";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 
@@ -12,12 +12,15 @@ export function HelpModal({ isOpen, onClose }: HelpModalProps) {
     const [isVisible, setIsVisible] = useState(false);
 
     useEffect(() => {
+        let timer: ReturnType<typeof setTimeout> | undefined;
         if (isOpen) {
             setIsVisible(true);
         } else {
-            const timer = setTimeout(() => setIsVisible(false), 300);
-            return () => clearTimeout(timer);
+            timer = setTimeout(() => setIsVisible(false), 300);
         }
+        return () => {
+            if (timer) clearTimeout(timer);
+        };
     }, [isOpen]);
 
     if (!isVisible) return null;
