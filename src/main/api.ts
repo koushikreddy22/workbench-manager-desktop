@@ -129,8 +129,11 @@ export function setupIpcHandlers() {
     // Control
     ipcMain.handle('control-service', async (_, { path: servicePath, action, port, mode, customCommand }) => {
         if (action === 'start') {
-            const defaultCommand = mode === 'prod' ? 'npm start' : 'npm run dev';
+            const defaultCommand = mode === 'prod' ? 'npm run build && npm start' : 'npm run dev';
             const command = customCommand || defaultCommand;
+            
+            // For build-and-start production processes, setting `specificStatus: 'building'` here would be confusing
+            // because after the build finishes, it moves to start. To do it easily in one process, we'll just track it as 'running' with prod.
             await processManager.startService(servicePath, command, port, mode || 'dev');
         } else if (action === 'stop') {
             await processManager.stopService(servicePath);
@@ -215,7 +218,18 @@ export function setupIpcHandlers() {
             }
         }
         if (cmd) {
-            await processManager.startService(servicePath, cmd);
+            let specificStatus: "building" | "installing" | undefined;
+            let mode: "dev" | "prod" | null = null;
+            
+            if (action === 'build') {
+                specificStatus = 'building';
+            } else if (action === 'install' || action === 'install-legacy') {
+                specificStatus = 'installing';
+            } else if (action === 'start-prod') {
+                mode = 'prod';
+            }
+
+            await processManager.startService(servicePath, cmd, undefined, mode, specificStatus);
         }
         return { success: true };
     });

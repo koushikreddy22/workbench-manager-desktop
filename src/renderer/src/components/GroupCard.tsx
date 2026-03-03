@@ -5,6 +5,7 @@ interface GroupCardProps {
     id: string;
     name: string;
     serviceCount: number;
+    modes?: Record<string, "dev" | "prod">;
     onRun: (id: string) => Promise<void>;
     onStop: (id: string) => Promise<void>;
     onEdit: (id: string) => void;
@@ -14,6 +15,7 @@ export function GroupCard({
     id,
     name,
     serviceCount,
+    modes,
     onRun,
     onStop,
     onEdit,
@@ -47,7 +49,19 @@ export function GroupCard({
             </div>
 
             <div className="flex items-center justify-between border-t border-slate-800/60 pt-6 mt-4">
-                <span className="text-xs font-black uppercase tracking-widest text-slate-500">{serviceCount} Channels</span>
+                <div className="flex items-center gap-3">
+                    <span className="text-xs font-black uppercase tracking-widest text-slate-500">{serviceCount} Channels</span>
+                    {modes && Object.values(modes).some(m => m === 'prod') && (
+                        <span className="text-[10px] px-2 py-0.5 rounded-full font-black uppercase tracking-widest shadow-[0_0_8px_rgba(0,0,0,0.5)] border bg-amber-500/20 text-amber-500 border-amber-500/30">
+                            {Object.values(modes).every(m => m === 'prod') ? 'PROD' : 'MIXED'}
+                        </span>
+                    )}
+                    {(!modes || Object.values(modes).every(m => m === 'dev')) && (
+                        <span className="text-[10px] px-2 py-0.5 rounded-full font-black uppercase tracking-widest shadow-[0_0_8px_rgba(0,0,0,0.5)] border bg-cyan-500/20 text-cyan-400 border-cyan-500/30">
+                            DEV
+                        </span>
+                    )}
+                </div>
                 <div className="flex gap-3">
                     <button
                         onClick={handleRun}

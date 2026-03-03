@@ -9,7 +9,8 @@ interface Service {
 interface Group {
     id: string;
     name: string;
-    servicePaths: string[];
+    servicePaths: string[]; // Keep for compatibility
+    serviceModes?: Record<string, "dev" | "prod">;
 }
 
 interface GroupModalProps {
@@ -29,11 +30,13 @@ export function GroupModal({
 }: GroupModalProps) {
     const [name, setName] = useState("");
     const [selectedPaths, setSelectedPaths] = useState<string[]>([]);
+    const [serviceModes, setServiceModes] = useState<Record<string, "dev" | "prod">>({});
 
     useEffect(() => {
         if (isOpen) {
             setName(initialGroup?.name || "");
             setSelectedPaths(initialGroup?.servicePaths || []);
+            setServiceModes(initialGroup?.serviceModes || {});
         }
     }, [isOpen, initialGroup]);
 
@@ -44,6 +47,7 @@ export function GroupModal({
             id: initialGroup?.id || crypto.randomUUID(),
             name,
             servicePaths: selectedPaths,
+            serviceModes,
         }, 'create');
         onClose();
     };
@@ -58,9 +62,17 @@ export function GroupModal({
     const toggleService = (path: string) => {
         if (selectedPaths.includes(path)) {
             setSelectedPaths(selectedPaths.filter((p) => p !== path));
+            const newModes = { ...serviceModes };
+            delete newModes[path];
+            setServiceModes(newModes);
         } else {
             setSelectedPaths([...selectedPaths, path]);
+            setServiceModes({ ...serviceModes, [path]: "dev" });
         }
+    };
+
+    const setServiceMode = (path: string, mode: "dev" | "prod") => {
+        setServiceModes({ ...serviceModes, [path]: mode });
     };
 
     return (
@@ -80,36 +92,66 @@ export function GroupModal({
 
                 <div className="space-y-5">
                     <div>
-                        <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1.5">
+                        <label className="block text-sm font-semibold text-slate-300 mb-1.5">
                             Group Name
                         </label>
                         <input
                             type="text"
                             value={name}
                             onChange={(e) => setName(e.target.value)}
-                            className="w-full rounded-lg border-gray-300 bg-white placeholder:text-gray-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-neutral-600 dark:bg-neutral-900 dark:text-white dark:focus:border-indigo-400 dark:focus:ring-indigo-500/20 sm:text-sm p-3 border outline-none transition-all shadow-sm"
+                            className="w-full rounded-lg border-slate-700 bg-slate-800/50 text-white placeholder:text-slate-500 focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20 sm:text-sm p-3 border outline-none transition-all shadow-sm"
                             placeholder="e.g. Core Services"
                         />
                     </div>
 
                     <div>
-                        <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2 mt-4">
-                            Select Services
+                        <label className="block text-sm font-semibold text-slate-300 mb-2 mt-4">
+                            Select Services ({selectedPaths.length})
                         </label>
-                        <div className="max-h-60 overflow-y-auto space-y-1.5 border border-gray-200 rounded-lg p-3 dark:border-neutral-700 bg-gray-50 dark:bg-neutral-900/50 shadow-inner">
+                        <div className="max-h-60 overflow-y-auto space-y-1.5 border border-slate-700/50 rounded-lg p-3 bg-slate-800/20 shadow-inner">
                             {availableServices.length === 0 ? (
-                                <p className="text-sm text-gray-500 p-2 text-center">No services available</p>
-                            ) : availableServices.map(service => (
-                                <label key={service.path} className="flex items-center space-x-3 p-2 rounded-md hover:bg-white dark:hover:bg-neutral-800 cursor-pointer transition-colors border border-transparent hover:border-gray-200 dark:hover:border-neutral-700">
-                                    <input
-                                        type="checkbox"
-                                        className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 dark:bg-neutral-700 dark:border-neutral-600 dark:ring-offset-neutral-800"
-                                        checked={selectedPaths.includes(service.path)}
-                                        onChange={() => toggleService(service.path)}
-                                    />
-                                    <span className="text-sm font-medium dark:text-gray-200 truncate" title={service.path}>{service.name}</span>
-                                </label>
-                            ))}
+                                <p className="text-sm text-slate-500 p-2 text-center">No services available</p>
+                            ) : availableServices.map(service => {
+                                const isSelected = selectedPaths.includes(service.path);
+                                const currentMode = serviceModes[service.path] || "dev";
+
+                                return (
+                                    <div key={service.path} className={`flex items-center justify-between p-2 rounded-md ${isSelected ? 'bg-cyan-500/10 border border-cyan-500/20' : 'hover:bg-slate-800/60 border border-transparent'} cursor-pointer transition-colors`}>
+                                        <label className="flex items-center space-x-3 flex-1 cursor-pointer truncate">
+                                            <input
+                                                type="checkbox"
+                                                className="h-4 w-4 rounded border-slate-600 bg-slate-700 text-cyan-500 focus:ring-cyan-500 focus:ring-offset-slate-900 transition-colors"
+                                                checked={isSelected}
+                                                onChange={() => toggleService(service.path)}
+                                            />
+                                            <span className="text-sm font-bold text-slate-100 truncate" title={service.path}>{service.name}</span>
+                                        </label>
+
+                                        {isSelected && (
+                                            <div className="flex bg-slate-800/50 rounded-lg p-0.5 ml-2 shrink-0">
+                                                <button
+                                                    onClick={(e) => { e.stopPropagation(); setServiceMode(service.path, 'dev'); }}
+                                                    className={`px-2 py-1 rounded-md text-[10px] font-black tracking-wider uppercase transition-all ${currentMode === 'dev'
+                                                        ? 'bg-cyan-500/20 text-cyan-400 shadow-sm border border-cyan-500/30'
+                                                        : 'text-slate-500 hover:text-slate-300'
+                                                        }`}
+                                                >
+                                                    Dev
+                                                </button>
+                                                <button
+                                                    onClick={(e) => { e.stopPropagation(); setServiceMode(service.path, 'prod'); }}
+                                                    className={`px-2 py-1 rounded-md text-[10px] font-black tracking-wider uppercase transition-all ${currentMode === 'prod'
+                                                        ? 'bg-amber-500/20 text-amber-500 shadow-sm border border-amber-500/30'
+                                                        : 'text-slate-500 hover:text-slate-300'
+                                                        }`}
+                                                >
+                                                    Prod
+                                                </button>
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            })}
                         </div>
                     </div>
 

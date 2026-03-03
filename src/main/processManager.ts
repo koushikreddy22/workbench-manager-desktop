@@ -3,7 +3,7 @@ import { ChildProcess, spawn } from 'child_process';
 export class ProcessManager {
     private processes: Map<string, ChildProcess> = new Map();
     private logs: Map<string, string[]> = new Map();
-    private status: Map<string, "stopped" | "starting" | "running" | "error"> = new Map();
+    private status: Map<string, "stopped" | "starting" | "running" | "error" | "building" | "installing" | "build-error" | "install-error"> = new Map();
     private modes: Map<string, "dev" | "prod" | null> = new Map();
     private MAX_LOG_LINES = 1000;
 
@@ -11,7 +11,7 @@ export class ProcessManager {
         return servicePath;
     }
 
-    async startService(servicePath: string, command: string = 'npm run dev', customPort?: number, mode: "dev" | "prod" = "dev"): Promise<void> {
+    async startService(servicePath: string, command: string = 'npm run dev', customPort?: number, mode: "dev" | "prod" | null = "dev", specificStatus?: "building" | "installing"): Promise<void> {
         const key = this.getStatusKey(servicePath);
 
         if (this.processes.has(key)) {
@@ -19,7 +19,8 @@ export class ProcessManager {
             return;
         }
 
-        this.status.set(key, "starting");
+        const initialStatus = specificStatus || "starting";
+        this.status.set(key, initialStatus);
         this.addLog(key, `Starting service: ${command}`);
 
         const child = spawn(command, {
@@ -30,7 +31,13 @@ export class ProcessManager {
         });
 
         this.processes.set(key, child);
-        this.status.set(key, "running");
+        
+        // If it's a specific one-off status like building/installing, keep it. 
+        // Otherwise, move to running for dev/prod servers.
+        if (!specificStatus) {
+            this.status.set(key, "running");
+        }
+        
         this.modes.set(key, mode); // Set the mode here
 
         child.stdout?.on('data', (data) => {
@@ -46,14 +53,27 @@ export class ProcessManager {
         child.on('close', (code) => {
             this.addLog(key, `Process exited with code ${code}`);
             this.processes.delete(key);
-            this.status.set(key, code === 0 || code === null ? "stopped" : "error");
+            
+            if (code === 0 || code === null) {
+                this.status.set(key, "stopped");
+            } else {
+                const currentStatus = this.status.get(key);
+                if (currentStatus === "building") this.status.set(key, "build-error");
+                else if (currentStatus === "installing") this.status.set(key, "install-error");
+                else this.status.set(key, "error");
+            }
             this.modes.set(key, null); // Clear mode on close
         });
 
         child.on('error', (err) => {
             this.addLog(key, `Failed to start process: ${err.message}`);
             this.processes.delete(key);
-            this.status.set(key, "error");
+            
+            const currentStatus = this.status.get(key);
+            if (currentStatus === "building") this.status.set(key, "build-error");
+            else if (currentStatus === "installing") this.status.set(key, "install-error");
+            else this.status.set(key, "error");
+            
             this.modes.set(key, null); // Clear mode on error
         });
     }
@@ -103,7 +123,7 @@ export class ProcessManager {
         return this.logs.get(this.getStatusKey(servicePath)) || [];
     }
 
-    async getServiceStatus(servicePath: string): Promise<{ status: "stopped" | "starting" | "running" | "error", mode: "dev" | "prod" | null }> {
+    async getServiceStatus(servicePath: string): Promise<{ status: "stopped" | "starting" | "running" | "error" | "building" | "installing" | "build-error" | "install-error", mode: "dev" | "prod" | null }> {
         return {
             status: this.status.get(this.getStatusKey(servicePath)) || "stopped",
             mode: this.modes.get(this.getStatusKey(servicePath)) || null

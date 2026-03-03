@@ -12,7 +12,7 @@ interface GitStatus {
 interface ServiceProps {
     name: string;
     path: string;
-    status: "running" | "stopped" | "error" | "starting";
+    status: "running" | "stopped" | "error" | "starting" | "building" | "installing" | "build-error" | "install-error";
     mode: "dev" | "prod" | null;
     port?: number;
     gitBranch?: string;
@@ -62,12 +62,13 @@ export function ServiceCard({ name, path, status, mode, port, gitBranch, gitStat
         try {
             await onCommand(path, action, payload);
         } finally {
-            if (action !== 'git-pull' && action !== 'npm-build') {
+            if (action !== 'git-pull' && action !== 'npm-build' && action !== 'npm-install') {
                 setActionLoading(null);
             } else if (action === 'git-pull') {
                 setTimeout(() => setActionLoading(null), 2000);
-            } else if (action === 'npm-build') {
-                setTimeout(() => setActionLoading(null), 5000);
+            } else {
+                // For build/install, we wait for the status from props to change
+                setActionLoading(null);
             }
         }
     };
@@ -75,9 +76,9 @@ export function ServiceCard({ name, path, status, mode, port, gitBranch, gitStat
     const statusColor =
         status === "running"
             ? "bg-green-500"
-            : status === "starting"
+            : (status === "starting" || status === "building" || status === "installing")
                 ? "bg-yellow-500"
-                : status === "error"
+                : (status === "error" || status === "build-error" || status === "install-error")
                     ? "bg-red-500"
                     : "bg-gray-400";
 
@@ -97,7 +98,7 @@ export function ServiceCard({ name, path, status, mode, port, gitBranch, gitStat
                     </h3>
                     {mode && status === "running" && (
                         <span className={cn(
-                            "text-[10px] px-2 py-0.5 rounded-full font-black uppercase tracking-widest ml-1 shadow-sm",
+                            "text-[10px] px-2 py-0.5 rounded-full font-black uppercase tracking-widest mr-5 shadow-sm",
                             mode === 'prod' ? "bg-amber-500/20 text-amber-400 border border-amber-500/30" : "bg-cyan-500/20 text-cyan-400 border border-cyan-500/30"
                         )}>
                             {mode}
@@ -185,14 +186,17 @@ export function ServiceCard({ name, path, status, mode, port, gitBranch, gitStat
                             </button>
                             <button
                                 onClick={() => handleAction('npm-build')}
-                                disabled={actionLoading === 'npm-build'}
-                                className="relative flex h-8 w-8 items-center justify-center rounded-full bg-slate-800/40 text-slate-400 hover:bg-slate-700/60 hover:text-cyan-400 transition-all border border-slate-700/50"
+                                disabled={actionLoading === 'npm-build' || status === 'building'}
+                                className={cn(
+                                    "relative flex h-8 w-8 items-center justify-center rounded-full transition-all border",
+                                    status === 'build-error' ? "bg-red-500/10 text-red-500 border-red-500/40 hover:bg-red-500/20" : "bg-slate-800/40 text-slate-400 hover:bg-slate-700/60 hover:text-cyan-400 border-slate-700/50"
+                                )}
                                 title="Build Service"
                             >
-                                {actionLoading === 'npm-build' && (
+                                {(actionLoading === 'npm-build' || status === 'building') && (
                                     <div className="absolute inset-0 rounded-full border-2 border-cyan-500 border-t-transparent animate-spin" />
                                 )}
-                                <Wrench className="h-4 w-4" />
+                                <Wrench className={cn("h-4 w-4", status === 'building' && "opacity-20")} />
                             </button>
                         </div>
                     )}
@@ -309,13 +313,19 @@ export function ServiceCard({ name, path, status, mode, port, gitBranch, gitStat
                                 "flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-xs font-bold transition-all border",
                                 status === "running" && mode === "prod"
                                     ? "bg-red-500/10 text-red-500 border-red-500/20 hover:bg-red-500/20"
-                                    : (status === "running" && mode === "dev")
+                                    : (status === "running" && mode === "dev") || status === "building"
                                         ? "bg-slate-800/50 text-slate-600 border-transparent cursor-not-allowed opacity-40"
                                         : "bg-amber-500/10 text-amber-500 border-amber-500/20 hover:bg-amber-500/20"
                             )}
-                            disabled={status === "running" && mode === "dev"}
+                            disabled={(status === "running" && mode === "dev") || status === "building"}
                         >
-                            {status === "running" && mode === "prod" ? <><Square className="h-3.5 w-3.5" /> Stop</> : <><Rocket className="h-3.5 w-3.5" /> Prod</>}
+                            {status === "building" ? (
+                                <><RefreshCw className="h-3.5 w-3.5 animate-spin" /> Building...</>
+                            ) : status === "running" && mode === "prod" ? (
+                                <><Square className="h-3.5 w-3.5" /> Stop</>
+                            ) : (
+                                <><Rocket className="h-3.5 w-3.5" /> Prod</>
+                            )}
                         </button>
                     </div>
                 )}
@@ -326,14 +336,17 @@ export function ServiceCard({ name, path, status, mode, port, gitBranch, gitStat
                     <div className="flex items-center gap-1.5 shrink-0 ml-4 pl-4 border-l border-gray-100 dark:border-neutral-700/50">
                         <button
                             onClick={() => handleAction('npm-build')}
-                            disabled={actionLoading === 'npm-build'}
-                            className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-neutral-700 transition-colors"
+                            disabled={actionLoading === 'npm-build' || status === 'building'}
+                            className={cn(
+                                "relative flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-colors",
+                                status === 'build-error' ? "bg-red-100 text-red-600 hover:bg-red-200 dark:bg-red-900/30 dark:text-red-400" : "bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-neutral-700"
+                            )}
                             title="Build Service"
                         >
-                            {actionLoading === 'npm-build' && (
+                            {(actionLoading === 'npm-build' || status === 'building') && (
                                 <div className="absolute inset-0 rounded-full border-2 border-indigo-500 border-t-transparent animate-spin" />
                             )}
-                            <Wrench className="h-4 w-4" />
+                            <Wrench className={cn("h-4 w-4", status === 'building' && "opacity-20")} />
                         </button>
 
                         <button
@@ -362,11 +375,11 @@ export function ServiceCard({ name, path, status, mode, port, gitBranch, gitStat
                                 "flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-colors",
                                 status === "running" && mode === "dev"
                                     ? "bg-red-100 text-red-600 hover:bg-red-200 dark:bg-red-900/30 dark:text-red-400 dark:hover:bg-red-900/50"
-                                    : (status === "running" && mode === "prod")
+                                    : (status === "running" && mode === "prod") || status === "building"
                                         ? "bg-gray-100 text-gray-400 cursor-not-allowed opacity-50"
                                         : "bg-indigo-100 text-indigo-600 hover:bg-indigo-200 dark:bg-indigo-900/30 dark:text-indigo-400 dark:hover:bg-indigo-900/50"
                             )}
-                            disabled={status === "running" && mode === "prod"}
+                            disabled={(status === "running" && mode === "prod") || status === "building"}
                             title={status === "running" && mode === "dev" ? "Stop Service" : "Start Dev Mode"}
                         >
                             {status === "running" && mode === "dev" ? <Square className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5 ml-0.5" />}
@@ -378,14 +391,14 @@ export function ServiceCard({ name, path, status, mode, port, gitBranch, gitStat
                                 "flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-colors",
                                 status === "running" && mode === "prod"
                                     ? "bg-red-100 text-red-600 hover:bg-red-200 dark:bg-red-900/30 dark:text-red-400 dark:hover:bg-red-900/50"
-                                    : (status === "running" && mode === "dev")
+                                    : (status === "running" && mode === "dev") || status === "building"
                                         ? "bg-gray-100 text-gray-400 cursor-not-allowed opacity-50"
                                         : "bg-amber-100 text-amber-600 hover:bg-amber-200 dark:bg-amber-900/30 dark:text-amber-400 dark:hover:bg-amber-900/50"
                             )}
-                            disabled={status === "running" && mode === "dev"}
-                            title={status === "running" && mode === "prod" ? "Stop Service" : "Start Production Mode"}
+                            disabled={(status === "running" && mode === "dev") || status === "building"}
+                            title={status === "running" && mode === "prod" ? "Stop Service" : status === "building" ? "Building..." : "Start Production Mode"}
                         >
-                            {status === "running" && mode === "prod" ? <Square className="h-3.5 w-3.5" /> : <Rocket className="h-3.5 w-3.5" />}
+                            {status === "building" ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : status === "running" && mode === "prod" ? <Square className="h-3.5 w-3.5" /> : <Rocket className="h-3.5 w-3.5" />}
                         </button>
 
                         <button

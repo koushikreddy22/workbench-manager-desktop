@@ -5,13 +5,14 @@ import { GroupModal } from "./components/GroupModal";
 import { LogModal } from "./components/LogModal";
 import { BranchModal } from "./components/BranchModal";
 import { ServiceSettingsModal } from "./components/ServiceSettingsModal";
-import { Loader2, RefreshCw, FolderOpen, Plus, Code, LayoutGrid, List, Search } from "lucide-react";
+import { HelpModal } from "./components/HelpModal";
+import { Loader2, RefreshCw, FolderOpen, Plus, Code, LayoutGrid, List, Search, HelpCircle } from "lucide-react";
 import logo from "../../../resources/icon.png";
 
 interface Service {
   name: string;
   path: string;
-  status: "running" | "stopped" | "error" | "starting";
+  status: "running" | "stopped" | "error" | "starting" | "building" | "installing" | "build-error" | "install-error";
   mode: "dev" | "prod" | null; // Added mode
   port?: number;
   gitBranch?: string;
@@ -25,7 +26,8 @@ interface Service {
 interface Group {
   id: string;
   name: string;
-  servicePaths: string[];
+  servicePaths: string[]; // Keep for compatibility
+  serviceModes?: Record<string, "dev" | "prod">;
 }
 
 function App() {
@@ -46,6 +48,7 @@ function App() {
   const [isBranchModalOpen, setIsBranchModalOpen] = useState(false);
   const [branchModalService, setBranchModalService] = useState<{ name: string, path: string, branch?: string } | null>(null);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [isHelpModalOpen, setIsHelpModalOpen] = useState(false);
 
   // Service Settings State
   const [serviceConfigs, setServiceConfigs] = useState<Record<string, any>>({});
@@ -237,16 +240,19 @@ function App() {
     if (!group) return;
 
     const targetStatus = action === 'start' ? 'starting' : 'stopped';
+
     setServices(prev => prev.map(s => {
       if (group.servicePaths.includes(s.path)) {
-        return { ...s, status: targetStatus };
+        const activeMode = group.serviceModes?.[s.path] || "dev";
+        return { ...s, status: targetStatus, mode: action === 'start' ? activeMode : null };
       }
       return s;
     }));
 
     await Promise.all(group.servicePaths.map(path => {
       const service = services.find(s => s.path === path);
-      return window.api.controlService({ path, action, port: service?.port });
+      const activeMode = group.serviceModes?.[path] || "dev";
+      return window.api.controlService({ path, action, port: service?.port, mode: activeMode });
     }));
 
     fetchData();
@@ -301,22 +307,21 @@ function App() {
         <img src={logo} alt="" className="w-2/3 min-w-[800px] h-auto object-contain blur-[2px] transition-all duration-1000" />
       </div>
       <div className="mx-auto max-w-7xl relative z-10 transition-all">
-        <header className="mb-12 flex items-center justify-between pb-8 border-b border-slate-800/60 backdrop-blur-sm">
-          <div className="flex items-center gap-6">
-            <div className="w-16 h-16 rounded-2xl bg-slate-900/40 backdrop-blur-md shadow-2xl border border-slate-700/50 p-2.5 flex items-center justify-center transform hover:scale-105 transition-all">
-              <img src={logo} alt="Vantage" className="w-full h-full object-contain drop-shadow-[0_0_15px_rgba(14,165,233,0.4)]" />
-            </div>
-            <div>
-              <h1 className="text-5xl font-black tracking-tight text-white mb-2">
-                <span className="bg-gradient-to-r from-indigo-400 via-cyan-400 to-sky-400 bg-clip-text text-transparent">Vantage</span> Dashboard
-              </h1>
-              <p className="text-slate-400 font-medium font-mono text-xs max-w-lg truncate px-1 border-l-2 border-cyan-500/50 ml-0.5" title={workbenchPath}>
-                {workbenchPath}
-              </p>
-            </div>
+        <header className="px-[20px] fixed top-0 left-0 w-full mb-12 flex flex-col lg:flex-row items-center justify-between gap-6 pb-6 pt-4 border-b border-slate-800/60 backdrop-blur-md z-50 bg-[#0B0F19]/95 text-center lg:text-left transition-all">          <div className="flex flex-col sm:flex-row items-center gap-6">
+          <div className="w-16 h-16 rounded-2xl bg-slate-900/40 backdrop-blur-md shadow-2xl border border-slate-700/50 p-2.5 flex items-center justify-center transform hover:scale-105 transition-all">
+            <img src={logo} alt="Vantage" className="w-full h-full object-contain drop-shadow-[0_0_15px_rgba(14,165,233,0.4)]" />
           </div>
+          <div>
+            <h1 className="text-5xl font-black tracking-tight text-white mb-2">
+              <span className="bg-gradient-to-r from-indigo-400 via-cyan-400 to-sky-400 bg-clip-text text-transparent">Vantage</span> Dashboard
+            </h1>
+            <p className="text-slate-400 font-medium font-mono text-xs max-w-lg truncate px-1 border-l-2 border-cyan-500/50 ml-0.5" title={workbenchPath}>
+              {workbenchPath}
+            </p>
+          </div>
+        </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center justify-center gap-3 w-full lg:w-auto mt-2 lg:mt-0">
             <div className="flex items-center gap-2 bg-slate-900/60 border border-slate-700/50 rounded-xl px-4 py-2.5 shadow-inner backdrop-blur-md group hover:border-cyan-500/30 transition-all">
               <Code className="h-4 w-4 text-slate-500 group-hover:text-cyan-400" />
               <select
@@ -360,6 +365,14 @@ function App() {
               <RefreshCw className={`h-5 w-5 ${isRefreshing ? "animate-spin" : ""}`} />
             </button>
 
+            <button
+              onClick={() => setIsHelpModalOpen(true)}
+              className="flex items-center justify-center rounded-xl bg-slate-900/60 p-2.5 border border-slate-700/50 text-slate-400 shadow-xl hover:bg-slate-800 hover:text-cyan-400 transition-all active:scale-95 ml-2"
+              title="Help & Documentation"
+            >
+              <HelpCircle className="h-5 w-5" />
+            </button>
+
             <div className="flex bg-slate-900/60 p-1 rounded-xl border border-slate-700/50 ml-4 shadow-inner backdrop-blur-md">
               <button
                 onClick={() => setViewMode('grid')}
@@ -379,7 +392,7 @@ function App() {
           </div>
         </header>
 
-        <div className="space-y-12">
+        <div className="space-y-12 mt-30">
           {groups.length > 0 && (
             <section>
               <h2 className="text-2xl font-bold tracking-tight text-white mb-8 flex items-center gap-4">
@@ -395,6 +408,7 @@ function App() {
                     id={group.id}
                     name={group.name}
                     serviceCount={group.servicePaths.length}
+                    modes={group.serviceModes}
                     onRun={(id) => handleGroupAction(id, 'start')}
                     onStop={(id) => handleGroupAction(id, 'stop')}
                     onEdit={openEditGroupModal}
@@ -487,6 +501,11 @@ function App() {
           onSave={handleSaveServiceConfig}
         />
       )}
+
+      <HelpModal
+        isOpen={isHelpModalOpen}
+        onClose={() => setIsHelpModalOpen(false)}
+      />
     </main>
   );
 }
