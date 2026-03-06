@@ -11,6 +11,8 @@ interface LogModalProps {
 export function LogModal({ isOpen, onClose, serviceName, servicePath }: LogModalProps) {
     const [logs, setLogs] = useState<string[]>([]);
     const endOfLogsRef = useRef<HTMLDivElement>(null);
+    const scrollContainerRef = useRef<HTMLDivElement>(null);
+    const autoScrollEnabled = useRef(true);
 
     const [isLaunching, setIsLaunching] = useState(false);
 
@@ -32,8 +34,17 @@ export function LogModal({ isOpen, onClose, serviceName, servicePath }: LogModal
     }, [isOpen, servicePath]);
 
     useEffect(() => {
-        endOfLogsRef.current?.scrollIntoView({ behavior: "smooth" });
+        if (autoScrollEnabled.current) {
+            endOfLogsRef.current?.scrollIntoView({ behavior: "smooth" });
+        }
     }, [logs]);
+
+    const handleScroll = () => {
+        if (!scrollContainerRef.current) return;
+        const { scrollTop, scrollHeight, clientHeight } = scrollContainerRef.current;
+        const isAtBottom = scrollHeight - scrollTop - clientHeight < 50;
+        autoScrollEnabled.current = isAtBottom;
+    };
 
     if (!isOpen) return null;
 
@@ -85,7 +96,11 @@ export function LogModal({ isOpen, onClose, serviceName, servicePath }: LogModal
                     </div>
                 </div>
 
-                <div className="flex-1 overflow-y-auto bg-slate-950/80 p-8 font-mono text-sm leading-relaxed text-slate-300 selection:bg-cyan-500/30">
+                <div
+                    ref={scrollContainerRef}
+                    onScroll={handleScroll}
+                    className="flex-1 overflow-y-auto bg-slate-950/80 p-8 font-mono text-sm leading-relaxed text-slate-300 selection:bg-cyan-500/30"
+                >
                     {logs.length === 0 ? (
                         <div className="flex h-full items-center justify-center text-gray-600">
                             No logs available yet...
