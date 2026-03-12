@@ -150,6 +150,24 @@ export function HelpModal({ isOpen, onClose }: HelpModalProps) {
                                             <p className="text-sm text-slate-400">Runs the service using the production server command (default: <code>npm start</code>). Use this to test production builds locally.</p>
                                         </div>
 
+                                         <div className="bg-indigo-500/10 p-5 rounded-2xl border border-indigo-500/20 shadow-inner">
+                                             <h4 className="font-bold text-indigo-400 text-sm uppercase tracking-widest mb-3">Card Color legend</h4>
+                                             <div className="space-y-3">
+                                                 <div className="flex items-center gap-3">
+                                                     <div className="h-4 w-4 rounded bg-cyan-500/20 border border-cyan-500/50 shadow-[0_0_10px_rgba(34,211,238,0.2)]"></div>
+                                                     <span className="text-sm text-slate-300"><strong>Cyan Glow:</strong> Service is running in <strong>Development</strong> mode.</span>
+                                                 </div>
+                                                 <div className="flex items-center gap-3">
+                                                     <div className="h-4 w-4 rounded bg-amber-500/20 border border-amber-500/50 shadow-[0_0_10px_rgba(245,158,11,0.2)]"></div>
+                                                     <span className="text-sm text-slate-300"><strong>Amber Glow:</strong> Service is running in <strong>Production</strong> mode.</span>
+                                                 </div>
+                                                 <div className="flex items-center gap-3">
+                                                     <div className="h-4 w-4 rounded bg-slate-800 border border-slate-700"></div>
+                                                     <span className="text-sm text-slate-400"><strong>Gray/Dark:</strong> Service is currently idle or stopped.</span>
+                                                 </div>
+                                             </div>
+                                         </div>
+
                                         <div className="bg-slate-800/30 p-5 rounded-xl border border-slate-700/50">
                                             <div className="flex items-center gap-3 mb-2">
                                                 <Wrench className="h-5 w-5 text-slate-400" />

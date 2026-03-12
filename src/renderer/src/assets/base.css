@@ -33,3 +33,15 @@ body {
   background-color: var(--color-background);
   color: var(--color-text);
 }
+
+button, 
+select, 
+input[type="checkbox"], 
+input[type="radio"],
+.cursor-pointer {
+  cursor: pointer !important;
+}
+
+button:disabled {
+  cursor: not-allowed !important;
+}

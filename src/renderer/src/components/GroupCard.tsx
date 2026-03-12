@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Play, Square, Settings, Loader2 } from "lucide-react";
+import { cn } from "../lib/utils";
 
 interface GroupCardProps {
     id: string;
@@ -34,33 +35,33 @@ export function GroupCard({
         setLoading(false);
     };
 
+    const hasProd = modes && Object.values(modes).some(m => m === 'prod');
+
     return (
-        <div className="group rounded-2xl border border-slate-800/50 bg-slate-900/40 p-6 shadow-2xl backdrop-blur-md transition-all duration-300 hover:border-indigo-500/30 hover:bg-slate-900/60">
-            <div className="flex items-center justify-between mb-6">
-                <h3 className="text-xl font-bold text-white group-hover:text-indigo-400 transition-colors">
+        <div className={cn(
+            "group rounded-2xl border transition-all duration-300 shadow-2xl backdrop-blur-md p-6",
+            hasProd
+                ? "bg-amber-950/20 border-amber-500/30 hover:border-amber-500/60 hover:shadow-amber-500/10 hover:bg-amber-950/30"
+                : "bg-cyan-950/20 border-cyan-500/30 hover:border-cyan-500/60 hover:shadow-cyan-500/10 hover:bg-cyan-950/30"
+        )}>
+            <div className="flex items-start justify-between mb-6 gap-4">
+                <h3 className={cn(
+                    "text-xl font-bold transition-colors break-words leading-tight",
+                    hasProd ? "text-white group-hover:text-amber-400" : "text-white group-hover:text-cyan-400"
+                )}>
                     {name}
                 </h3>
                 <button
                     onClick={() => onEdit(id)}
-                    className="p-2.5 rounded-xl bg-slate-800/50 text-slate-400 hover:bg-slate-700 hover:text-white transition-all border border-slate-700/50"
+                    className="p-2.5 rounded-xl bg-slate-800/50 text-slate-400 hover:bg-slate-700 hover:text-white transition-all border border-slate-700/50 shrink-0"
                 >
                     <Settings className="h-4 w-4" />
                 </button>
             </div>
 
-            <div className="flex items-center justify-between border-t border-slate-800/60 pt-6 mt-4">
-                <div className="flex items-center gap-3">
-                    <span className="text-xs font-black uppercase tracking-widest text-slate-500">{serviceCount} Channels</span>
-                    {modes && Object.values(modes).some(m => m === 'prod') && (
-                        <span className="text-[10px] px-2 py-0.5 rounded-full font-black uppercase tracking-widest shadow-[0_0_8px_rgba(0,0,0,0.5)] border bg-amber-500/20 text-amber-500 border-amber-500/30">
-                            {Object.values(modes).every(m => m === 'prod') ? 'PROD' : 'MIXED'}
-                        </span>
-                    )}
-                    {(!modes || Object.values(modes).every(m => m === 'dev')) && (
-                        <span className="text-[10px] px-2 py-0.5 rounded-full font-black uppercase tracking-widest shadow-[0_0_8px_rgba(0,0,0,0.5)] border bg-cyan-500/20 text-cyan-400 border-cyan-500/30">
-                            DEV
-                        </span>
-                    )}
+            <div className="flex items-center justify-between border-t border-slate-800/60 pt-6 mt-4 flex-wrap gap-4">
+                <div className="flex items-center gap-3 flex-wrap">
+                    <span className="text-xs font-black uppercase tracking-widest text-slate-500 shrink-0">{serviceCount} Channels</span>
                 </div>
                 <div className="flex gap-3">
                     <button

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { ServiceCard } from "./components/ServiceCard";
+import { ServiceRow } from "./components/ServiceRow";
 import { GroupCard } from "./components/GroupCard";
 import { GroupModal } from "./components/GroupModal";
 import { LogModal } from "./components/LogModal";
@@ -449,17 +450,36 @@ function App() {
                 </button>
               </div>
             ) : (
-              <div className={viewMode === 'grid' ? "grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" : "flex flex-col gap-4"}>
+              <div className={viewMode === 'grid' ? "grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" : "flex flex-col gap-2"}>
+                {viewMode === 'list' && (
+                  <div className="flex items-center gap-4 px-6 py-2 text-[10px] font-black text-slate-500 uppercase tracking-widest border-b border-slate-800/50 mb-2">
+                    <div className="flex-1">Service Name</div>
+                    <div className="w-20 text-center">Port</div>
+                    <div className="w-[180px] text-left">Git Context</div>
+                    <div className="w-[140px] text-left">Control</div>
+                    <div className="w-[160px] text-right pr-6">Actions</div>
+                  </div>
+                )}
                 {services.map((service) => (
-                  <ServiceCard
-                    key={service.path}
-                    {...service}
-                    onToggle={handleToggleService}
-                    onCommand={handleCommand}
-                    onOpenIde={handleOpenIde}
-                    isIdeLoading={loadingIdePaths.includes(service.path)}
-                    layout={viewMode}
-                  />
+                  viewMode === 'grid' ? (
+                    <ServiceCard
+                      key={service.path}
+                      {...service}
+                      onToggle={handleToggleService}
+                      onCommand={handleCommand}
+                      onOpenIde={handleOpenIde}
+                      isIdeLoading={loadingIdePaths.includes(service.path)}
+                    />
+                  ) : (
+                    <ServiceRow
+                      key={service.path}
+                      {...service}
+                      onToggle={handleToggleService}
+                      onCommand={handleCommand}
+                      onOpenIde={handleOpenIde}
+                      isIdeLoading={loadingIdePaths.includes(service.path)}
+                    />
+                  )
                 ))}
               </div>
             )}
