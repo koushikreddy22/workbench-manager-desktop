@@ -129,6 +129,10 @@ export class ProcessManager {
             mode: this.modes.get(this.getStatusKey(servicePath)) || null
         };
     }
+
+    clearLogs(servicePath: string) {
+        this.logs.set(this.getStatusKey(servicePath), []);
+    }
 }
 
 export const processManager = new ProcessManager();

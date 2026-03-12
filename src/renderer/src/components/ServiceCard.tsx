@@ -9,6 +9,12 @@ interface GitStatus {
     behind: number;
 }
 
+interface CustomButton {
+    name: string;
+    command: string;
+    color: string;
+}
+
 interface ServiceProps {
     name: string;
     path: string;
@@ -17,13 +23,14 @@ interface ServiceProps {
     port?: number;
     gitBranch?: string;
     gitStatus?: GitStatus;
+    customButtons?: CustomButton[];
     onToggle: (path: string, action: "start" | "stop" | "log", mode?: "dev" | "prod") => void;
     onCommand: (path: string, action: string, payload?: any) => void;
     onOpenIde: (path: string) => void;
     isIdeLoading?: boolean;
 }
 
-export function ServiceCard({ name, path, status, mode, port, gitBranch, gitStatus, onToggle, onCommand, onOpenIde, isIdeLoading }: ServiceProps) {
+export function ServiceCard({ name, path, status, mode, port, gitBranch, gitStatus, customButtons, onToggle, onCommand, onOpenIde, isIdeLoading }: ServiceProps) {
     const [actionLoading, setActionLoading] = useState<string | null>(null);
     const [menuOpen, setMenuOpen] = useState(false);
     const [menuPosition, setMenuPosition] = useState<{ top: number, left: number | 'auto', right: number | 'auto' }>({ top: 0, left: 0, right: 'auto' });
@@ -253,6 +260,31 @@ export function ServiceCard({ name, path, status, mode, port, gitBranch, gitStat
                             >
                                 <RefreshCw className={cn("h-4 w-4", actionLoading === 'git-pull' && "animate-spin")} />
                             </button>
+                        </div>
+                    )}
+
+                    {/* Custom Shortcut Buttons */}
+                    {customButtons && customButtons.length > 0 && customButtons.some(b => b.name && b.command) && (
+                        <div className="flex flex-wrap gap-2 mt-2 pt-4 border-t border-slate-800/30">
+                            {customButtons.map((btn, idx) => {
+                                if (!btn.name || !btn.command) return null;
+                                return (
+                                    <button
+                                        key={idx}
+                                        onClick={() => handleAction('custom-command', { command: btn.command, name: btn.name })}
+                                        disabled={actionLoading === 'custom-command'}
+                                        style={{ 
+                                            backgroundColor: `${btn.color}15`, 
+                                            borderColor: `${btn.color}30`,
+                                            color: btn.color 
+                                        }}
+                                        className="flex-1 min-w-[80px] flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-lg text-[10px] font-black transition-all border hover:bg-opacity-20 cursor-pointer"
+                                    >
+                                        <Code className="h-3 w-3" />
+                                        {btn.name.toUpperCase()}
+                                    </button>
+                                );
+                            })}
                         </div>
                     )}
 

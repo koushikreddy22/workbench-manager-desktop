@@ -146,6 +146,12 @@ function App() {
   };
 
   const handleCommand = async (path: string, action: string, payload?: any) => {
+    if (action === 'custom-command') {
+      await window.api.npmCommand({ action: 'custom', path, customCommand: payload.command });
+      setTimeout(fetchData, 1000);
+      return;
+    }
+
     if (action === 'git-checkout-modal') {
       const svc = services.find((s) => s.path === path);
       if (svc) {
@@ -156,13 +162,10 @@ function App() {
     }
 
     if (action === 'service-settings') {
-      console.log("Setting action triggered for path:", path);
       const svc = services.find((s) => s.path === path);
-      console.log("Found service:", svc);
       if (svc) {
         setSettingsModalService({ name: svc.name, path: svc.path });
         setIsSettingsModalOpen(true);
-        console.log("Set modal open state to true");
       }
       return;
     }
@@ -179,6 +182,7 @@ function App() {
     } else if (action.startsWith('git-')) {
       await window.api.gitCommand({ action: action.replace('git-', ''), path, branch: payload?.branch });
     }
+
     setTimeout(fetchData, 1000);
   };
 
@@ -457,14 +461,16 @@ function App() {
                     <div className="w-20 text-center">Port</div>
                     <div className="w-[180px] text-left">Git Context</div>
                     <div className="w-[140px] text-left">Control</div>
-                    <div className="w-[160px] text-right pr-6">Actions</div>
+                    <div className="w-[260px] text-right pr-6">Actions</div>
                   </div>
                 )}
-                {services.map((service) => (
-                  viewMode === 'grid' ? (
+                {services.map((service) => {
+                  const config = serviceConfigs[service.path] || {};
+                  return viewMode === 'grid' ? (
                     <ServiceCard
                       key={service.path}
                       {...service}
+                      customButtons={config.customButtons}
                       onToggle={handleToggleService}
                       onCommand={handleCommand}
                       onOpenIde={handleOpenIde}
@@ -474,13 +480,14 @@ function App() {
                     <ServiceRow
                       key={service.path}
                       {...service}
+                      customButtons={config.customButtons}
                       onToggle={handleToggleService}
                       onCommand={handleCommand}
                       onOpenIde={handleOpenIde}
                       isIdeLoading={loadingIdePaths.includes(service.path)}
                     />
                   )
-                ))}
+                })}
               </div>
             )}
           </section>

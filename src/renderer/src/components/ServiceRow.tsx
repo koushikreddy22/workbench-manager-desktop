@@ -9,6 +9,12 @@ interface GitStatus {
     behind: number;
 }
 
+interface CustomButton {
+    name: string;
+    command: string;
+    color: string;
+}
+
 interface ServiceRowProps {
     name: string;
     path: string;
@@ -17,13 +23,14 @@ interface ServiceRowProps {
     port?: number;
     gitBranch?: string;
     gitStatus?: GitStatus;
+    customButtons?: CustomButton[];
     onToggle: (path: string, action: "start" | "stop" | "log", mode?: "dev" | "prod") => void;
     onCommand: (path: string, action: string, payload?: any) => void;
     onOpenIde: (path: string) => void;
     isIdeLoading?: boolean;
 }
 
-export function ServiceRow({ name, path, status, mode, port, gitBranch, gitStatus, onToggle, onCommand, onOpenIde, isIdeLoading }: ServiceRowProps) {
+export function ServiceRow({ name, path, status, mode, port, gitBranch, gitStatus, customButtons, onToggle, onCommand, onOpenIde, isIdeLoading }: ServiceRowProps) {
     const [menuOpen, setMenuOpen] = useState(false);
     const [menuPosition, setMenuPosition] = useState<{ top: number, left: number | 'auto', right: number | 'auto' }>({ top: 0, left: 0, right: 'auto' });
     const menuRef = useRef<HTMLDivElement>(null);
@@ -170,11 +177,27 @@ export function ServiceRow({ name, path, status, mode, port, gitBranch, gitStatu
                 </button>
             </div>
 
-            {/* 5. Quick Actions (Fixed 160px) */}
-            <div className="w-[160px] shrink-0 flex items-center justify-end gap-1.5 pr-2">
+            {/* 5. Quick Actions (Fixed 260px) */}
+            <div className="w-[260px] shrink-0 flex items-center justify-end gap-1.5 pr-2">
+                {/* Custom Buttons */}
+                {customButtons?.map((btn, idx) => {
+                    if (!btn.name || !btn.command) return null;
+                    return (
+                        <button
+                            key={idx}
+                            onClick={() => handleAction('custom-command', { command: btn.command, name: btn.name })}
+                            style={{ color: btn.color }}
+                            className="p-1.5 rounded-lg bg-slate-800/40 hover:bg-slate-800 transition-all border border-transparent hover:border-current/20 cursor-pointer"
+                            title={btn.name}
+                        >
+                            <Code className="h-3.5 w-3.5" />
+                        </button>
+                    );
+                })}
+
                 <button
                     onClick={() => handleAction('npm-build')}
-                    className="p-1.5 rounded-lg bg-slate-800/40 text-slate-500 hover:text-cyan-400 hover:bg-slate-800 transition-all"
+                    className="p-1.5 rounded-lg bg-slate-800/40 text-slate-500 hover:text-cyan-400 hover:bg-slate-800 transition-all cursor-pointer"
                     title="Build"
                 >
                     <Wrench className="h-3.5 w-3.5" />

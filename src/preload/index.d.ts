@@ -13,6 +13,7 @@ declare global {
       saveGroups: (data: any) => Promise<any>
       getServiceConfigs: () => Promise<any>
       saveServiceConfig: (data: any) => Promise<any>
+      clearLogs: (data: any) => Promise<any>
       gitCommand: (data: any) => Promise<any>
       npmCommand: (data: any) => Promise<any>
       updateConfig: (data: any) => Promise<any>

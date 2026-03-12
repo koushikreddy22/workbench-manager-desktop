@@ -145,6 +145,11 @@ export function setupIpcHandlers() {
         return { logs: processManager.getLogs(servicePath) };
     });
 
+    ipcMain.handle('clear-logs', (_, { path: servicePath }) => {
+        processManager.clearLogs(servicePath);
+        return { success: true };
+    });
+
     // Groups
     const getGroupsPath = () => path.join(app.getPath('userData'), 'localDB.json');
     ipcMain.handle('get-groups', () => {
