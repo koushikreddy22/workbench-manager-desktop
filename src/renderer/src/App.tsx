@@ -8,7 +8,7 @@ import { BranchModal } from "./components/BranchModal";
 import { ServiceSettingsModal } from "./components/ServiceSettingsModal";
 import { HelpModal } from "./components/HelpModal";
 import { Loader2, RefreshCw, FolderOpen, Plus, Code, LayoutGrid, List, Search, HelpCircle } from "lucide-react";
-import logo from "../../../resources/icon.png";
+import logo from "../../../build/icon.png";
 
 interface Service {
   name: string;
