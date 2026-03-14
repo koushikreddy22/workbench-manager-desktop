@@ -5,10 +5,11 @@ import { createPortal } from "react-dom";
 interface HelpModalProps {
     isOpen: boolean;
     onClose: () => void;
+    onReset: () => void;
 }
 
-export function HelpModal({ isOpen, onClose }: HelpModalProps) {
-    const [activeTab, setActiveTab] = useState<'basics' | 'services' | 'clusters' | 'git'>('basics');
+export function HelpModal({ isOpen, onClose, onReset }: HelpModalProps) {
+    const [activeTab, setActiveTab] = useState<'basics' | 'services' | 'clusters' | 'git' | 'danger'>('basics');
     const [isVisible, setIsVisible] = useState(false);
 
     useEffect(() => {
@@ -30,6 +31,7 @@ export function HelpModal({ isOpen, onClose }: HelpModalProps) {
         { id: 'services', label: 'Managing Services', icon: Terminal },
         { id: 'git', label: 'Git & Source', icon: GitBranch },
         { id: 'clusters', label: 'Project Clusters', icon: LayoutGrid },
+        { id: 'danger', label: 'Reset App', icon: Settings },
     ] as const;
 
     return createPortal(
@@ -116,6 +118,15 @@ export function HelpModal({ isOpen, onClose }: HelpModalProps) {
                                         <p className="text-slate-300 text-sm">
                                             Use the dropdown in the header to select your preferred Code Editor (VS Code, Cursor, WebStorm, etc.).
                                             Clicking the <Code className="inline h-4 w-4 text-slate-400 bg-slate-800 p-0.5 rounded" /> code icon on any service card will open that project directly in your chosen IDE.
+                                        </p>
+                                    </div>
+
+                                    <div className="space-y-4">
+                                        <h4 className="font-bold text-cyan-400">Managing Workbenches</h4>
+                                        <p className="text-slate-300 text-sm">
+                                            You can add multiple workspace folders as tabs.
+                                            <strong> Reorder:</strong> Click and drag a tab to change its position.
+                                            <strong> Remove:</strong> Click the small <X className="inline h-3 w-3 text-red-400" /> icon on a tab to remove it from your dashboard.
                                         </p>
                                     </div>
 
@@ -238,13 +249,43 @@ export function HelpModal({ isOpen, onClose }: HelpModalProps) {
                                     <div className="bg-gradient-to-br from-indigo-900/30 to-purple-900/30 p-6 rounded-2xl border border-indigo-500/20">
                                         <h4 className="font-bold text-white text-lg mb-2">Creating a Cluster</h4>
                                         <p className="text-sm text-slate-300 mb-4">
-                                            Click <strong>"New Cluster"</strong> in the main header. Give it a name (like <em>"Payment Gateway Stack"</em>) and select all the services that belong to it from the dropdown.
+                                            Click <strong>"New Cluster"</strong> in the main header. Give it a name and select services from the dropdown. 
+                                            For each service, you can now <strong>select a specific environment profile</strong> to use when the cluster starts.
+                                        </p>
+
+                                        <h4 className="font-bold text-white text-lg mb-2 pt-4 border-t border-indigo-500/20">Workbench Isolation</h4>
+                                        <p className="text-sm text-slate-300 mb-4">
+                                            Clusters are <strong>isolated by workbench</strong>. A "Payment Stack" created in Workspace A will not appear when you switch to Workspace B.
                                         </p>
 
                                         <h4 className="font-bold text-white text-lg mb-2 pt-4 border-t border-indigo-500/20">Managing Multiple Services</h4>
                                         <p className="text-sm text-slate-300">
-                                            Once created, clicking "Run All" on a cluster card will instantly boot up every service tied to it in Dev mode. Clicking "Stop All" securely kills the processes for all grouped services simultaneously.
+                                            Once created, clicking "Run All" on a cluster card will switch every service to its assigned environment and boot them up in the selected mode (Dev/Prod) simultaneously.
                                         </p>
+                                    </div>
+                                </div>
+                            )}
+
+                            {activeTab === 'danger' && (
+                                <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
+                                    <h3 className="text-xl font-bold border-b border-red-800/60 pb-2 text-white flex items-center gap-2"><Settings className="h-5 w-5 text-red-500" /> Danger Zone</h3>
+
+                                    <div className="bg-red-500/10 p-6 rounded-2xl border border-red-500/20">
+                                        <h4 className="font-bold text-red-400 text-lg mb-2 text-center uppercase tracking-widest">Master Reset</h4>
+                                        <p className="text-sm text-slate-300 mb-8 text-center leading-relaxed">
+                                            This will permanently delete all your workspace configurations, project clusters, environment profiles, and custom service settings.
+                                            <strong> The app will relaunch automatically after reset.</strong>
+                                        </p>
+
+                                        <div className="flex justify-center">
+                                            <button
+                                                onClick={onReset}
+                                                className="px-8 py-4 rounded-xl bg-red-600 hover:bg-red-500 text-white font-black text-sm shadow-xl shadow-red-600/20 transition-all hover:scale-105 active:scale-95 uppercase tracking-widest flex items-center gap-3"
+                                            >
+                                                <X className="h-5 w-5 stroke-[3px]" />
+                                                Reset Everything
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
                             )}

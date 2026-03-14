@@ -7,7 +7,8 @@ import { LogModal } from "./components/LogModal";
 import { BranchModal } from "./components/BranchModal";
 import { ServiceSettingsModal } from "./components/ServiceSettingsModal";
 import { HelpModal } from "./components/HelpModal";
-import { Loader2, RefreshCw, FolderOpen, Plus, Code, LayoutGrid, List, Search, HelpCircle } from "lucide-react";
+import { EnvSettingsModal } from "./components/EnvSettingsModal";
+import { Loader2, RefreshCw, FolderOpen, Plus, Code, LayoutGrid, List, Search, HelpCircle, X } from "lucide-react";
 import logo from "../../../build/icon.png";
 
 interface Service {
@@ -22,6 +23,9 @@ interface Service {
     ahead: number;
     behind: number;
   };
+  activeEnv?: { name: string; color: string } | null;
+  envProfiles?: { id: string; name: string; color: string }[];
+  activeEnvId?: string | null;
 }
 
 interface Group {
@@ -29,10 +33,22 @@ interface Group {
   name: string;
   servicePaths: string[]; // Keep for compatibility
   serviceModes?: Record<string, "dev" | "prod">;
+  serviceEnvs?: Record<string, string>;
+}
+
+interface Workbench {
+  id: string;
+  name: string;
+  path: string;
 }
 
 function App() {
-  const [workbenchPath, setWorkbenchPath] = useState<string | null>(null);
+  const [workbenches, setWorkbenches] = useState<Workbench[]>([]);
+  const [activeWorkbenchId, setActiveWorkbenchId] = useState<string | null>(null);
+  
+  const activeWorkbench = workbenches.find(w => w.id === activeWorkbenchId);
+  const workbenchPath = activeWorkbench?.path || null;
+
   const [services, setServices] = useState<Service[]>([]);
   const [groups, setGroups] = useState<Group[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -46,10 +62,23 @@ function App() {
   const [isGroupModalOpen, setIsGroupModalOpen] = useState(false);
   const [editingGroup, setEditingGroup] = useState<Group | undefined>(undefined);
   const [loadingIdePaths, setLoadingIdePaths] = useState<string[]>([]);
+  const [envSwitchingPaths, setEnvSwitchingPaths] = useState<string[]>([]);
   const [isBranchModalOpen, setIsBranchModalOpen] = useState(false);
   const [branchModalService, setBranchModalService] = useState<{ name: string, path: string, branch?: string } | null>(null);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [isHelpModalOpen, setIsHelpModalOpen] = useState(false);
+  const [envModalOpen, setEnvModalOpen] = useState<{ 
+    isOpen: boolean; 
+    servicePath: string; 
+    serviceName: string; 
+    initialMode?: 'add' | 'edit';
+    discoveredFiles: string[];
+  }>({ 
+    isOpen: false, 
+    servicePath: '', 
+    serviceName: '',
+    discoveredFiles: []
+  });
 
   // Service Settings State
   const [serviceConfigs, setServiceConfigs] = useState<Record<string, any>>({});
@@ -63,19 +92,24 @@ function App() {
 
   useEffect(() => {
     let interval: any;
-    if (workbenchPath) {
+    if (activeWorkbenchId && workbenchPath) {
       fetchData();
       interval = setInterval(fetchData, 3000);
     }
     return () => {
       if (interval) clearInterval(interval);
     };
-  }, [workbenchPath]);
+  }, [activeWorkbenchId, workbenchPath]);
 
   const loadConfig = async () => {
     const config = await window.api.getConfig();
-    if (config.workbenchPath) {
-      setWorkbenchPath(config.workbenchPath);
+    if (config.workbenches && config.workbenches.length > 0) {
+      setWorkbenches(config.workbenches);
+      setActiveWorkbenchId(config.activeWorkbenchId);
+    } else if (config.workbenchPath) {
+      const legacyId = "legacy";
+      setWorkbenches([{ id: legacyId, name: "Legacy", path: config.workbenchPath }]);
+      setActiveWorkbenchId(legacyId);
     }
     if (config.defaultIde) {
       setDefaultIde(config.defaultIde);
@@ -89,17 +123,57 @@ function App() {
   };
 
   const handleSelectWorkbench = async () => {
-    const p = await window.api.selectWorkbench();
-    if (p) {
-      setWorkbenchPath(p);
+    const config = await window.api.selectWorkbench();
+    if (config && config.workbenches) {
+      setWorkbenches(config.workbenches);
+      setActiveWorkbenchId(config.activeWorkbenchId);
       setIsLoading(true);
     }
+  };
+
+  const handleSwitchWorkbench = async (id: string) => {
+    if (id === activeWorkbenchId) return;
+    setActiveWorkbenchId(id);
+    setIsLoading(true);
+    await window.api.updateConfig({ activeWorkbenchId: id });
+  };
+
+  const handleRemoveWorkbench = async (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    const newWorkbenches = workbenches.filter(w => w.id !== id);
+    if (newWorkbenches.length === 0) {
+      // Don't allow removing last workbench if needed, or handle empty state
+      setWorkbenches([]);
+      setActiveWorkbenchId(null);
+      await window.api.updateConfig({ workbenches: [], activeWorkbenchId: null });
+    } else {
+      let nextActiveId = activeWorkbenchId;
+      if (id === activeWorkbenchId) {
+        nextActiveId = newWorkbenches[0].id;
+      }
+      setWorkbenches(newWorkbenches);
+      setActiveWorkbenchId(nextActiveId);
+      await window.api.updateConfig({ workbenches: newWorkbenches, activeWorkbenchId: nextActiveId });
+    }
+  };
+
+  const handleReorderWorkbenches = async (draggedId: string, targetId: string) => {
+    const draggedIdx = workbenches.findIndex(w => w.id === draggedId);
+    const targetIdx = workbenches.findIndex(w => w.id === targetId);
+    if (draggedIdx === -1 || targetIdx === -1) return;
+
+    const newWorkbenches = [...workbenches];
+    const [draggedItem] = newWorkbenches.splice(draggedIdx, 1);
+    newWorkbenches.splice(targetIdx, 0, draggedItem);
+
+    setWorkbenches(newWorkbenches);
+    await window.api.updateConfig({ workbenches: newWorkbenches });
   };
 
   const fetchData = async () => {
     if (!workbenchPath) return;
     try {
-      window.api.getGroups().then(groupsData => {
+      window.api.getGroups({ workbenchId: activeWorkbenchId }).then(groupsData => {
         setGroups(groupsData.groups || []);
       }).catch(console.error);
 
@@ -170,6 +244,43 @@ function App() {
       return;
     }
 
+    if (action === 'open-env-settings' || action === 'env-settings') {
+      const svc = services.find((s) => s.path === path);
+      if (svc) {
+        // Fetch env data to get discovered files immediately
+        window.api.getEnv({ path }).then(res => {
+          setEnvModalOpen({ 
+            isOpen: true, 
+            servicePath: svc.path, 
+            serviceName: svc.name,
+            initialMode: (payload?.initialMode === 'add' || payload?.mode === 'add') ? 'add' : 'edit',
+            discoveredFiles: res.discoveredFiles || []
+          });
+        }).catch(err => {
+          console.error("Failed to fetch discovered files", err);
+          setEnvModalOpen({ 
+            isOpen: true, 
+            servicePath: svc.path, 
+            serviceName: svc.name,
+            initialMode: (payload?.initialMode === 'add' || payload?.mode === 'add') ? 'add' : 'edit',
+            discoveredFiles: []
+          });
+        });
+      }
+      return;
+    }
+
+    if (action === 'switch-env') {
+      setEnvSwitchingPaths(prev => [...prev, path]);
+      try {
+        await window.api.switchEnv({ path, profileId: payload.profileId });
+        await fetchData();
+      } finally {
+        setEnvSwitchingPaths(prev => prev.filter(p => p !== path));
+      }
+      return;
+    }
+
     if (action.startsWith('npm-')) {
       const cmdAction = action.replace('npm-', '');
       const config = serviceConfigs[path] || {};
@@ -235,7 +346,7 @@ function App() {
       setGroups(prev => prev.filter(g => g.id !== id));
     }
 
-    await window.api.saveGroups({ group, action, id });
+    await window.api.saveGroups({ workbenchId: activeWorkbenchId, group, action, id });
     // Groups are already updated optimistically and fetchData will run async
     fetchData();
   };
@@ -254,10 +365,29 @@ function App() {
       return s;
     }));
 
-    await Promise.all(group.servicePaths.map(path => {
+    await Promise.all(group.servicePaths.map(async path => {
       const service = services.find(s => s.path === path);
       const activeMode = group.serviceModes?.[path] || "dev";
-      return window.api.controlService({ path, action, port: service?.port, mode: activeMode });
+      const envId = group.serviceEnvs?.[path];
+
+      if (action === 'start' && envId) {
+        try {
+          await window.api.switchEnv({ path, profileId: envId });
+        } catch (err) {
+          console.error(`Failed to switch environment for ${path}:`, err);
+        }
+      }
+
+      const config = serviceConfigs[path] || {};
+      const customCommand = action === 'start' ? (activeMode === 'prod' ? config.prodCommand : config.devCommand) : undefined;
+
+      return window.api.controlService({ 
+        path, 
+        action, 
+        port: service?.port, 
+        mode: activeMode,
+        customCommand
+      });
     }));
 
     fetchData();
@@ -320,9 +450,52 @@ function App() {
             <h1 className="text-5xl font-black tracking-tight text-white mb-2">
               <span className="bg-gradient-to-r from-indigo-400 via-cyan-400 to-sky-400 bg-clip-text text-transparent">Vantage</span> Dashboard
             </h1>
-            <p className="text-slate-400 font-medium font-mono text-xs max-w-lg truncate px-1 border-l-2 border-cyan-500/50 ml-0.5" title={workbenchPath}>
-              {workbenchPath}
-            </p>
+            
+            {/* Workbench Tabs */}
+            <div className="flex flex-wrap items-center gap-2 mt-2">
+              {workbenches.map(wb => (
+                <div
+                  key={wb.id}
+                  draggable
+                  onDragStart={(e) => {
+                    e.dataTransfer.setData("workbenchId", wb.id);
+                  }}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    const draggedId = e.dataTransfer.getData("workbenchId");
+                    if (draggedId && draggedId !== wb.id) {
+                      handleReorderWorkbenches(draggedId, wb.id);
+                    }
+                  }}
+                  className={`flex items-center gap-1 px-3 py-1 text-[11px] font-bold rounded-lg transition-all cursor-move ${wb.id === activeWorkbenchId ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 shadow-[0_0_10px_rgba(34,211,238,0.2)]' : 'bg-slate-800/40 text-slate-400 overflow-hidden border border-slate-700/50 hover:bg-slate-700 hover:text-white'}`}
+                >
+                  <button
+                    onClick={() => handleSwitchWorkbench(wb.id)}
+                    title={wb.path}
+                    className="flex-1 text-left whitespace-nowrap overflow-hidden"
+                  >
+                    {wb.name}
+                  </button>
+                  <button
+                    onClick={(e) => handleRemoveWorkbench(e, wb.id)}
+                    className="p-0.5 hover:text-red-400 transition-colors"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+              ))}
+              <button
+                onClick={handleSelectWorkbench}
+                title="Add Workspace"
+                className="px-2 py-1 bg-slate-800/40 border border-slate-700/50 rounded-lg text-slate-400 hover:text-cyan-400 hover:border-cyan-500/50 transition-all flex items-center justify-center"
+              >
+                <Plus className="h-3.5 w-3.5" />
+              </button>
+            </div>
+
           </div>
         </div>
 
@@ -353,13 +526,10 @@ function App() {
               New Cluster
             </button>
 
-            <button
-              onClick={handleSelectWorkbench}
-              className="flex items-center gap-2 rounded-xl bg-slate-800/40 px-5 py-2.5 border border-slate-700/50 text-sm font-bold text-slate-300 shadow-xl hover:bg-slate-700/60 hover:text-white hover:border-slate-500 transition-all active:scale-95"
-            >
-              <FolderOpen className="h-4 w-4 text-cyan-500" />
-              Switch Workspace
-            </button>
+            {/* 
+              We removed the old "Switch Workspace" button from here since we use the
+              compact tabs above the title. 
+            */}
 
             <button
               onClick={handleRefresh}
@@ -475,16 +645,20 @@ function App() {
                       onCommand={handleCommand}
                       onOpenIde={handleOpenIde}
                       isIdeLoading={loadingIdePaths.includes(service.path)}
+                      isEnvSwitching={envSwitchingPaths.includes(service.path)}
                     />
                   ) : (
                     <ServiceRow
                       key={service.path}
                       {...service}
+                      envProfiles={service.envProfiles}
+                      activeEnvId={service.activeEnvId}
                       customButtons={config.customButtons}
                       onToggle={handleToggleService}
                       onCommand={handleCommand}
                       onOpenIde={handleOpenIde}
                       isIdeLoading={loadingIdePaths.includes(service.path)}
+                      isEnvSwitching={envSwitchingPaths.includes(service.path)}
                     />
                   )
                 })}
@@ -532,6 +706,21 @@ function App() {
       <HelpModal
         isOpen={isHelpModalOpen}
         onClose={() => setIsHelpModalOpen(false)}
+        onReset={() => window.api.resetApp()}
+      />
+
+      <EnvSettingsModal
+          isOpen={envModalOpen.isOpen}
+          onClose={() => setEnvModalOpen(prev => ({ ...prev, isOpen: false }))}
+          servicePath={envModalOpen.servicePath}
+          serviceName={envModalOpen.serviceName}
+          initialMode={envModalOpen.initialMode}
+          onSaved={() => {
+            if (activeWorkbenchId && workbenchPath) {
+               fetchData();
+            }
+          }}
+          discoveredFiles={envModalOpen.discoveredFiles}
       />
     </main>
   );

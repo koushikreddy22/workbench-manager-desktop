@@ -1,16 +1,18 @@
 import { useState, useEffect } from "react";
 import { X, Trash2 } from "lucide-react";
 
-interface Service {
-    name: string;
-    path: string;
-}
-
 interface Group {
     id: string;
     name: string;
     servicePaths: string[]; // Keep for compatibility
     serviceModes?: Record<string, "dev" | "prod">;
+    serviceEnvs?: Record<string, string>;
+}
+
+interface Service {
+    name: string;
+    path: string;
+    envProfiles?: { id: string; name: string; color: string }[];
 }
 
 interface GroupModalProps {
@@ -31,12 +33,14 @@ export function GroupModal({
     const [name, setName] = useState("");
     const [selectedPaths, setSelectedPaths] = useState<string[]>([]);
     const [serviceModes, setServiceModes] = useState<Record<string, "dev" | "prod">>({});
+    const [serviceEnvs, setServiceEnvs] = useState<Record<string, string>>({});
 
     useEffect(() => {
         if (isOpen) {
             setName(initialGroup?.name || "");
             setSelectedPaths(initialGroup?.servicePaths || []);
             setServiceModes(initialGroup?.serviceModes || {});
+            setServiceEnvs(initialGroup?.serviceEnvs || {});
         }
     }, [isOpen, initialGroup]);
 
@@ -48,6 +52,7 @@ export function GroupModal({
             name,
             servicePaths: selectedPaths,
             serviceModes,
+            serviceEnvs,
         }, 'create');
         onClose();
     };
@@ -68,11 +73,19 @@ export function GroupModal({
         } else {
             setSelectedPaths([...selectedPaths, path]);
             setServiceModes({ ...serviceModes, [path]: "dev" });
+            const svc = availableServices.find(s => s.path === path);
+            if (svc?.envProfiles && svc.envProfiles.length > 0) {
+                setServiceEnvs({ ...serviceEnvs, [path]: svc.envProfiles[0].id });
+            }
         }
     };
 
     const setServiceMode = (path: string, mode: "dev" | "prod") => {
         setServiceModes({ ...serviceModes, [path]: mode });
+    };
+
+    const setServiceEnv = (path: string, envId: string) => {
+        setServiceEnvs({ ...serviceEnvs, [path]: envId });
     };
 
     return (
@@ -128,25 +141,39 @@ export function GroupModal({
                                         </label>
 
                                         {isSelected && (
-                                            <div className="flex bg-slate-800/50 rounded-lg p-0.5 ml-2 shrink-0">
-                                                <button
-                                                    onClick={(e) => { e.stopPropagation(); setServiceMode(service.path, 'dev'); }}
-                                                    className={`px-2 py-1 rounded-md text-[10px] font-black tracking-wider uppercase transition-all ${currentMode === 'dev'
-                                                        ? 'bg-cyan-500/20 text-cyan-400 shadow-sm border border-cyan-500/30'
-                                                        : 'text-slate-500 hover:text-slate-300'
-                                                        }`}
-                                                >
-                                                    Dev
-                                                </button>
-                                                <button
-                                                    onClick={(e) => { e.stopPropagation(); setServiceMode(service.path, 'prod'); }}
-                                                    className={`px-2 py-1 rounded-md text-[10px] font-black tracking-wider uppercase transition-all ${currentMode === 'prod'
-                                                        ? 'bg-amber-500/20 text-amber-500 shadow-sm border border-amber-500/30'
-                                                        : 'text-slate-500 hover:text-slate-300'
-                                                        }`}
-                                                >
-                                                    Prod
-                                                </button>
+                                            <div className="flex items-center gap-2 ml-2 shrink-0">
+                                                {service.envProfiles && service.envProfiles.length > 0 && (
+                                                    <select
+                                                        value={serviceEnvs[service.path] || ''}
+                                                        onChange={(e) => setServiceEnv(service.path, e.target.value)}
+                                                        onClick={(e) => e.stopPropagation()}
+                                                        className="text-[10px] bg-slate-800 border border-slate-700 rounded px-1 py-1 text-slate-300 outline-none focus:border-cyan-500 transition-all font-bold"
+                                                    >
+                                                        {service.envProfiles.map(p => (
+                                                            <option key={p.id} value={p.id} className="bg-slate-900">{p.name}</option>
+                                                        ))}
+                                                    </select>
+                                                )}
+                                                <div className="flex bg-slate-800/50 rounded-lg p-0.5">
+                                                    <button
+                                                        onClick={(e) => { e.stopPropagation(); setServiceMode(service.path, 'dev'); }}
+                                                        className={`px-2 py-1 rounded-md text-[10px] font-black tracking-wider uppercase transition-all ${currentMode === 'dev'
+                                                            ? 'bg-cyan-500/20 text-cyan-400 shadow-sm border border-cyan-500/30'
+                                                            : 'text-slate-500 hover:text-slate-300'
+                                                            }`}
+                                                    >
+                                                        Dev
+                                                    </button>
+                                                    <button
+                                                        onClick={(e) => { e.stopPropagation(); setServiceMode(service.path, 'prod'); }}
+                                                        className={`px-2 py-1 rounded-md text-[10px] font-black tracking-wider uppercase transition-all ${currentMode === 'prod'
+                                                            ? 'bg-amber-500/20 text-amber-500 shadow-sm border border-amber-500/30'
+                                                            : 'text-slate-500 hover:text-slate-300'
+                                                            }`}
+                                                    >
+                                                        Prod
+                                                    </button>
+                                                </div>
                                             </div>
                                         )}
                                     </div>

@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
-import { FileText, GitBranch, MoreVertical, Download, Settings, RefreshCw, Wrench, Code, Copy, Check } from "lucide-react";
+import { FileText, GitBranch, MoreVertical, Download, Settings, RefreshCw, Wrench, Code, Copy, Check, Database, Plus, Edit2 } from "lucide-react";
 import { cn } from "../lib/utils";
 
 interface GitStatus {
@@ -28,9 +28,13 @@ interface ServiceRowProps {
     onCommand: (path: string, action: string, payload?: any) => void;
     onOpenIde: (path: string) => void;
     isIdeLoading?: boolean;
+    isEnvSwitching?: boolean;
+    activeEnv?: { name: string; color: string } | null;
+    envProfiles?: { id: string; name: string; color: string }[];
+    activeEnvId?: string | null;
 }
 
-export function ServiceRow({ name, path, status, mode, port, gitBranch, gitStatus, customButtons, onToggle, onCommand, onOpenIde, isIdeLoading }: ServiceRowProps) {
+export function ServiceRow({ name, path, status, mode, port, gitBranch, gitStatus, envProfiles, activeEnvId, customButtons, onToggle, onCommand, onOpenIde, isIdeLoading, isEnvSwitching }: ServiceRowProps) {
     const [menuOpen, setMenuOpen] = useState(false);
     const [menuPosition, setMenuPosition] = useState<{ top: number, left: number | 'auto', right: number | 'auto' }>({ top: 0, left: 0, right: 'auto' });
     const menuRef = useRef<HTMLDivElement>(null);
@@ -98,6 +102,56 @@ export function ServiceRow({ name, path, status, mode, port, gitBranch, gitStatu
                 <h3 className="text-sm font-bold text-white truncate" title={name}>
                     {name}
                 </h3>
+                <div className="flex items-center gap-0.5 min-w-0">
+                    {isEnvSwitching ? (
+                        <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-slate-800/80 border border-slate-700/80 shrink-0">
+                            <div className="h-2.5 w-2.5 border-2 border-cyan-500/30 border-t-cyan-500 rounded-full animate-spin" />
+                            <span className="text-[8px] font-bold text-slate-400 tracking-wide uppercase">Switching...</span>
+                        </div>
+                    ) : envProfiles && envProfiles.length > 0 ? (
+                        <div className="flex items-center rounded-full bg-slate-800/90 border border-slate-700/60 p-px gap-px">
+                            {envProfiles.map((profile) => (
+                                <button
+                                    key={profile.id}
+                                    onClick={(e) => { e.stopPropagation(); if (activeEnvId !== profile.id) onCommand(path, 'switch-env', { profileId: profile.id }); }}
+                                    className={cn(
+                                        "flex items-center gap-1 px-1.5 py-px rounded-full text-[8px] font-bold uppercase tracking-wide transition-all duration-200 whitespace-nowrap",
+                                        activeEnvId === profile.id
+                                            ? "bg-cyan-500/15 text-cyan-300 shadow-sm border border-cyan-500/30"
+                                            : "text-slate-500 hover:text-slate-300 hover:bg-slate-700/50 border border-transparent"
+                                    )}
+                                >
+                                    <div className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: profile.color }} />
+                                    {profile.name}
+                                </button>
+                            ))}
+                            <button
+                                onClick={(e) => { e.stopPropagation(); onCommand(path, 'open-env-settings', { initialMode: 'add' }); }}
+                                className="flex items-center justify-center w-4 h-4 rounded-full text-slate-500 hover:text-cyan-400 hover:bg-slate-700/50 transition-all"
+                                title="Add Profile"
+                            >
+                                <Plus className="h-2 w-2" />
+                            </button>
+                        </div>
+                    ) : (
+                        <button
+                            onClick={(e) => { e.stopPropagation(); onCommand(path, 'open-env-settings', { initialMode: 'edit' }); }}
+                            className="flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-slate-800/80 border border-slate-700/60 text-slate-500 hover:text-cyan-400 hover:border-cyan-500/30 transition-all"
+                        >
+                            <Settings className="h-2.5 w-2.5" />
+                            <span className="text-[8px] font-bold uppercase tracking-wide">Env</span>
+                        </button>
+                    )}
+                    {envProfiles && envProfiles.length > 0 && !isEnvSwitching && (
+                        <button
+                            onClick={(e) => { e.stopPropagation(); onCommand(path, 'open-env-settings', { initialMode: 'edit' }); }}
+                            className="flex items-center justify-center w-4 h-4 rounded-full text-slate-600 hover:text-cyan-400 hover:bg-slate-800/80 transition-all"
+                            title="Edit Profiles"
+                        >
+                            <Edit2 className="h-2 w-2" />
+                        </button>
+                    )}
+                </div>
                 <button 
                     onClick={handleCopyPath}
                     className="flex-shrink-0 p-1 rounded hover:bg-slate-800 text-slate-500 hover:text-cyan-400 transition-colors"
@@ -251,6 +305,12 @@ export function ServiceRow({ name, path, status, mode, port, gitBranch, gitStatu
                             >
                                 <RefreshCw className="h-4 w-4 text-slate-500" /> Git Pull
                             </button>
+                            <button
+                                onClick={() => handleAction('open-env-settings', { initialMode: 'edit' })}
+                                className="flex w-full items-center gap-2.5 px-4 py-2.5 text-sm text-slate-300 hover:bg-slate-800 hover:text-white transition-all"
+                            >
+                                <Database className="h-4 w-4 text-slate-500" /> Environment...
+                            </button>
                             <div className="border-t border-slate-800/80 my-1"></div>
                             <button
                                 onClick={() => handleAction('npm-install')}
@@ -261,6 +321,8 @@ export function ServiceRow({ name, path, status, mode, port, gitBranch, gitStatu
                         </div>,
                         document.body
                     )}
+
+
                 </div>
             </div>
         </div>

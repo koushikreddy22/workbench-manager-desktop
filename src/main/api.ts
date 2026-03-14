@@ -1,14 +1,67 @@
 import { ipcMain, dialog, app } from 'electron';
 import fs from 'fs';
-import path from 'path';
+const path = require('path');
 import { spawn, exec } from 'child_process';
 import util from 'util';
 import os from 'os';
 import { processManager } from './processManager';
+const dotenv = require('dotenv');
 
 const execAsync = util.promisify(exec);
 
+function discoverEnvFiles(basePath: string): string[] {
+    const envFiles: string[] = [];
+    try {
+        const entries = fs.readdirSync(basePath, { withFileTypes: true });
+        for (const entry of entries) {
+            if (entry.isFile() && entry.name.startsWith('.env')) {
+                envFiles.push(path.join(basePath, entry.name));
+            } else if (entry.isDirectory() && !entry.name.startsWith('.') && entry.name !== 'node_modules') {
+                // Scan one level deep as requested
+                const subPath = path.join(basePath, entry.name);
+                const subEntries = fs.readdirSync(subPath, { withFileTypes: true });
+                for (const subEntry of subEntries) {
+                    if (subEntry.isFile() && subEntry.name.startsWith('.env')) {
+                        envFiles.push(path.join(subPath, subEntry.name));
+                    }
+                }
+            }
+        }
+    } catch (e) { }
+    return envFiles;
+}
+
 export function setupIpcHandlers() {
+
+    // Reset App
+    ipcMain.handle('reset-app', async () => {
+        const result = await dialog.showMessageBox({
+            type: 'warning',
+            buttons: ['Cancel', 'Reset Everything'],
+            defaultId: 0,
+            title: 'Confirm Reset',
+            message: 'Are you sure you want to reset everything?',
+            detail: 'This will clear all workbenches, clusters, and saved settings. This action cannot be undone.'
+        });
+
+        if (result.response === 1) {
+            const userDataPath = app.getPath('userData');
+            const filesToClear = ['config.json', 'localDB.json', 'service-configs.json', 'environments.json'];
+            
+            for (const file of filesToClear) {
+                const p = path.join(userDataPath, file);
+                try {
+                    if (fs.existsSync(p)) fs.unlinkSync(p);
+                } catch (e) {
+                    console.error(`Failed to delete ${file}:`, e);
+                }
+            }
+            
+            app.relaunch();
+            app.exit(0);
+        }
+        return { success: false };
+    });
 
     // Config Handlers
     ipcMain.handle('select-workbench', async () => {
@@ -17,27 +70,48 @@ export function setupIpcHandlers() {
             title: 'Select Workbench Directory'
         });
         if (!result.canceled && result.filePaths.length > 0) {
-            // Save to config (Merging)
+            const selectedPath = result.filePaths[0];
             const configPath = path.join(app.getPath('userData'), 'config.json');
-            let config: any = {};
+            let config: any = { workbenches: [] };
             if (fs.existsSync(configPath)) {
                 try { config = JSON.parse(fs.readFileSync(configPath, 'utf8')); } catch (e) { }
             }
-            config.workbenchPath = result.filePaths[0];
+            
+            if (!config.workbenches) config.workbenches = [];
+            if (config.workbenchPath && config.workbenches.length === 0) {
+                config.workbenches.push({ id: require('uuid').v4(), path: config.workbenchPath, name: path.basename(config.workbenchPath) });
+                delete config.workbenchPath;
+            }
+
+            let existing = config.workbenches.find((w: any) => w.path === selectedPath);
+            if (!existing) {
+                existing = { id: require('uuid').v4(), path: selectedPath, name: path.basename(selectedPath) };
+                config.workbenches.push(existing);
+            }
+            
+            config.activeWorkbenchId = existing.id;
             fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
-            return result.filePaths[0];
+            return config;
         }
         return null;
     });
 
     ipcMain.handle('get-config', () => {
         const configPath = path.join(app.getPath('userData'), 'config.json');
+        let config: any = { workbenches: [] };
         if (fs.existsSync(configPath)) {
             try {
-                return JSON.parse(fs.readFileSync(configPath, 'utf8'));
-            } catch (e) { return {}; }
+                config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+            } catch (e) { }
         }
-        return {};
+        if (!config.workbenches) config.workbenches = [];
+        if (config.workbenchPath && config.workbenches.length === 0) {
+            config.workbenches.push({ id: require('uuid').v4(), path: config.workbenchPath, name: path.basename(config.workbenchPath) });
+            config.activeWorkbenchId = config.workbenches[0].id;
+            delete config.workbenchPath;
+            try { fs.writeFileSync(configPath, JSON.stringify(config, null, 2)); } catch(e) {}
+        }
+        return config;
     });
 
     ipcMain.handle('update-config', (_, newConfig: any) => {
@@ -54,6 +128,14 @@ export function setupIpcHandlers() {
     // Services
     ipcMain.handle('get-services', async (_, workbenchPath: string) => {
         if (!workbenchPath || !fs.existsSync(workbenchPath)) return { services: [] };
+
+        const envsPath = path.join(app.getPath('userData'), 'environments.json');
+        let globalEnvs: any = {};
+        if (fs.existsSync(envsPath)) {
+            try {
+                globalEnvs = JSON.parse(fs.readFileSync(envsPath, 'utf8'));
+            } catch (e) { }
+        }
 
         const entries = fs.readdirSync(workbenchPath, { withFileTypes: true });
 
@@ -76,7 +158,7 @@ export function setupIpcHandlers() {
                             const envPath = path.join(fullPath, '.env');
                             if (fs.existsSync(envPath)) {
                                 const envContent = fs.readFileSync(envPath, 'utf-8');
-                                const envPortMatch = envContent.match(/^PORT\s*=\s*(\d+)/m);
+                                const envPortMatch = envContent.match(/^PORT\s*=\s*["']?(\d+)["']?/m);
                                 if (envPortMatch) detectedPort = parseInt(envPortMatch[1], 10);
                             }
                         }
@@ -110,6 +192,45 @@ export function setupIpcHandlers() {
                     } catch (e) { }
 
                     const serviceStatus = await processManager.getServiceStatus(fullPath);
+                    
+                    let activeEnv: { name: string; color: string } | null = null;
+                    let envProfiles: { id: string; name: string; color: string }[] = [];
+                    let activeEnvId: string | null = null;
+
+                    let serviceEnvs = globalEnvs[fullPath];
+                    
+                    // Auto-initialize if .env exists but no profiles in globalEnvs
+                    const envFilePath = path.join(fullPath, '.env');
+                    if (!serviceEnvs && fs.existsSync(envFilePath)) {
+                        try {
+                            const fileContent = fs.readFileSync(envFilePath, 'utf8');
+                            const actualEnv = dotenv.parse(fileContent);
+                            if (Object.keys(actualEnv).length > 0) {
+                                const defaultId = require('crypto').randomUUID();
+                                serviceEnvs = {
+                                    active: defaultId,
+                                    profiles: [{
+                                        id: defaultId,
+                                        name: "Default",
+                                        color: "#10b981",
+                                        variables: actualEnv
+                                    }]
+                                };
+                                globalEnvs[fullPath] = serviceEnvs;
+                                fs.writeFileSync(envsPath, JSON.stringify(globalEnvs, null, 2));
+                            }
+                        } catch (e) { }
+                    }
+
+                    if (serviceEnvs && serviceEnvs.active && serviceEnvs.profiles) {
+                        envProfiles = serviceEnvs.profiles.map((p: any) => ({ id: p.id, name: p.name, color: p.color }));
+                        activeEnvId = serviceEnvs.active;
+                        const profile = serviceEnvs.profiles.find((p: any) => p.id === serviceEnvs.active);
+                        if (profile) {
+                            activeEnv = { name: profile.name, color: profile.color };
+                        }
+                    }
+
                     return {
                         name: entry.name,
                         path: fullPath,
@@ -117,7 +238,10 @@ export function setupIpcHandlers() {
                         mode: serviceStatus.mode,
                         port: detectedPort,
                         gitBranch,
-                        gitStatus
+                        gitStatus,
+                        activeEnv,
+                        envProfiles,
+                        activeEnvId
                     };
                 }
                 return null;
@@ -152,16 +276,27 @@ export function setupIpcHandlers() {
 
     // Groups
     const getGroupsPath = () => path.join(app.getPath('userData'), 'localDB.json');
-    ipcMain.handle('get-groups', () => {
+    ipcMain.handle('get-groups', (_, { workbenchId }) => {
+        if (!workbenchId) return { groups: [] };
         const p = getGroupsPath();
-        if (fs.existsSync(p)) return { groups: JSON.parse(fs.readFileSync(p, 'utf8')) };
+        if (fs.existsSync(p)) {
+            const data = JSON.parse(fs.readFileSync(p, 'utf8'));
+            if (Array.isArray(data)) return { groups: [] }; // Legacy fix
+            return { groups: data[workbenchId] || [] };
+        }
         return { groups: [] };
     });
 
-    ipcMain.handle('save-groups', (_, { action, group, id }) => {
+    ipcMain.handle('save-groups', (_, { workbenchId, action, group, id }) => {
+        if (!workbenchId) return { success: false };
         const p = getGroupsPath();
-        let groups: any[] = [];
-        if (fs.existsSync(p)) groups = JSON.parse(fs.readFileSync(p, 'utf8'));
+        let allGroups: Record<string, any[]> = {};
+        if (fs.existsSync(p)) {
+            const data = JSON.parse(fs.readFileSync(p, 'utf8'));
+            if (!Array.isArray(data)) allGroups = data;
+        }
+
+        let groups = allGroups[workbenchId] || [];
 
         if (action === 'create') {
             const index = groups.findIndex((g: any) => g.id === group.id);
@@ -170,7 +305,9 @@ export function setupIpcHandlers() {
         } else if (action === 'delete') {
             groups = groups.filter((g: any) => g.id !== id);
         }
-        fs.writeFileSync(p, JSON.stringify(groups, null, 2));
+
+        allGroups[workbenchId] = groups;
+        fs.writeFileSync(p, JSON.stringify(allGroups, null, 2));
         return { success: true };
     });
 
@@ -190,6 +327,107 @@ export function setupIpcHandlers() {
         configs[servicePath] = config;
         fs.writeFileSync(p, JSON.stringify(configs, null, 2));
         return { success: true };
+    });
+
+    // Environments
+    const getEnvironmentsPath = () => path.join(app.getPath('userData'), 'environments.json');
+    
+    ipcMain.handle('get-env', (_, { path: servicePath }) => {
+        const p = getEnvironmentsPath();
+        let envs: any = {};
+        if (fs.existsSync(p)) envs = JSON.parse(fs.readFileSync(p, 'utf8'));
+
+        let serviceEnvs = envs[servicePath] || { active: null, profiles: [] };
+        
+        // Read actual .env file 
+        const envFilePath = path.join(servicePath, '.env');
+        let actualEnv = {};
+        if (fs.existsSync(envFilePath)) {
+            const fileContent = fs.readFileSync(envFilePath, 'utf8');
+            actualEnv = dotenv.parse(fileContent);
+        }
+
+        // Setup default profile if none exists but .env has data
+        if (serviceEnvs.profiles.length === 0 && Object.keys(actualEnv).length > 0) {
+            const defaultId = require('crypto').randomUUID();
+            serviceEnvs.profiles.push({
+                id: defaultId,
+                name: "Default",
+                color: "#10b981", // Emerald
+                variables: actualEnv
+            });
+            serviceEnvs.active = defaultId;
+            envs[servicePath] = serviceEnvs;
+            fs.writeFileSync(p, JSON.stringify(envs, null, 2));
+        }
+
+        const discoveredFiles = discoverEnvFiles(servicePath);
+
+        return { data: serviceEnvs, actualEnv, discoveredFiles };
+    });
+
+    ipcMain.handle('save-env', (_, { path: servicePath, data }) => {
+        const p = getEnvironmentsPath();
+        let envs: any = {};
+        if (fs.existsSync(p)) envs = JSON.parse(fs.readFileSync(p, 'utf8'));
+        
+        envs[servicePath] = data;
+        fs.writeFileSync(p, JSON.stringify(envs, null, 2));
+        
+        // Write active profile variables to actual .env
+        const activeProfile = data.profiles.find((p: any) => p.id === data.active);
+        if (activeProfile && activeProfile.variables) {
+             const envStr = Object.keys(activeProfile.variables).map(k => {
+                 const v = activeProfile.variables[k];
+                 // Only quote values that contain spaces, newlines, or special chars
+                 const needsQuotes = /[\s#"'\\]/.test(v) || v === '';
+                 return needsQuotes ? `${k}="${v}"` : `${k}=${v}`;
+             }).join('\n');
+             // User requested to list all .env files and select path
+             // We'll sync to their specific envPath if it exists, otherwise fallback to root .env
+             const targetPath = activeProfile.envPath || path.join(servicePath, '.env');
+             fs.writeFileSync(targetPath, envStr);
+             
+             // If we updated a specific env file (like .env.development), 
+             // we should probably ALSO update the root .env as it's the standard entry point
+             if (targetPath !== path.join(servicePath, '.env')) {
+                fs.writeFileSync(path.join(servicePath, '.env'), envStr);
+             }
+        }
+
+        return { success: true };
+    });
+
+    ipcMain.handle('switch-env', (_, { path: servicePath, profileId }) => {
+        const p = getEnvironmentsPath();
+        let envs: any = {};
+        if (fs.existsSync(p)) envs = JSON.parse(fs.readFileSync(p, 'utf8'));
+        
+        const serviceEnvs = envs[servicePath];
+        if (serviceEnvs) {
+            serviceEnvs.active = profileId;
+            envs[servicePath] = serviceEnvs;
+            fs.writeFileSync(p, JSON.stringify(envs, null, 2));
+
+            // Sync .env file
+            const activeProfile = serviceEnvs.profiles.find((p: any) => p.id === profileId);
+            if (activeProfile && activeProfile.variables) {
+                const envStr = Object.keys(activeProfile.variables).map(k => {
+                    const v = activeProfile.variables[k];
+                    const needsQuotes = /[\s#"'\\]/.test(v) || v === '';
+                    return needsQuotes ? `${k}="${v}"` : `${k}=${v}`;
+                }).join('\n');
+                const targetPath = activeProfile.envPath || path.join(servicePath, '.env');
+                fs.writeFileSync(targetPath, envStr);
+                
+                // Also sync to root .env for compatibility
+                if (targetPath !== path.join(servicePath, '.env')) {
+                    fs.writeFileSync(path.join(servicePath, '.env'), envStr);
+                }
+            }
+            return { success: true };
+        }
+        return { success: false };
     });
 
     // Git

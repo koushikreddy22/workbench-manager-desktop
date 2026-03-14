@@ -8,7 +8,7 @@ const api = {
   getServices: (path: string) => ipcRenderer.invoke('get-services', path),
   controlService: (data: any) => ipcRenderer.invoke('control-service', data),
   getLogs: (data: any) => ipcRenderer.invoke('get-logs', data),
-  getGroups: () => ipcRenderer.invoke('get-groups'),
+  getGroups: (data: any) => ipcRenderer.invoke('get-groups', data),
   saveGroups: (data: any) => ipcRenderer.invoke('save-groups', data),
   getServiceConfigs: () => ipcRenderer.invoke('get-service-configs'),
   saveServiceConfig: (data: any) => ipcRenderer.invoke('save-service-config', data),
@@ -18,6 +18,10 @@ const api = {
   openTerminal: (path: string) => ipcRenderer.invoke('open-terminal', path),
   openIde: (data: { path: string, ide: string }) => ipcRenderer.invoke('open-ide', data),
   checkIdes: () => ipcRenderer.invoke('check-ides'),
+  getEnv: (data: { path: string }) => ipcRenderer.invoke('get-env', data),
+  saveEnv: (data: { path: string, data: any }) => ipcRenderer.invoke('save-env', data),
+  switchEnv: (data: { path: string, profileId: string }) => ipcRenderer.invoke('switch-env', data),
+  resetApp: () => ipcRenderer.invoke('reset-app'),
 
   // Terminal
   terminalCreate: (data: any) => ipcRenderer.invoke('terminal-create', data),

@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
-import { Play, Square, FileText, GitBranch, MoreVertical, Download, Settings, RefreshCw, Wrench, Rocket, Code, ArrowUp, ArrowDown, FolderOpen, Copy, Check } from "lucide-react";
+import { Play, Square, FileText, GitBranch, MoreVertical, Download, Settings, RefreshCw, Wrench, Rocket, Code, ArrowUp, ArrowDown, FolderOpen, Copy, Check, Database, Plus, Edit2 } from "lucide-react";
 import { cn } from "../lib/utils";
 
 interface GitStatus {
@@ -25,12 +25,16 @@ interface ServiceProps {
     gitStatus?: GitStatus;
     customButtons?: CustomButton[];
     onToggle: (path: string, action: "start" | "stop" | "log", mode?: "dev" | "prod") => void;
-    onCommand: (path: string, action: string, payload?: any) => void;
+    onCommand: (path: string, action: string, payload?: any) => Promise<void>;
     onOpenIde: (path: string) => void;
     isIdeLoading?: boolean;
+    isEnvSwitching?: boolean;
+    activeEnv?: { name: string; color: string } | null;
+    envProfiles?: { id: string; name: string; color: string }[];
+    activeEnvId?: string | null;
 }
 
-export function ServiceCard({ name, path, status, mode, port, gitBranch, gitStatus, customButtons, onToggle, onCommand, onOpenIde, isIdeLoading }: ServiceProps) {
+export function ServiceCard({ name, path, status, mode, port, gitBranch, gitStatus, envProfiles, activeEnvId, customButtons, onToggle, onCommand, onOpenIde, isIdeLoading, isEnvSwitching }: ServiceProps) {
     const [actionLoading, setActionLoading] = useState<string | null>(null);
     const [menuOpen, setMenuOpen] = useState(false);
     const [menuPosition, setMenuPosition] = useState<{ top: number, left: number | 'auto', right: number | 'auto' }>({ top: 0, left: 0, right: 'auto' });
@@ -104,6 +108,56 @@ export function ServiceCard({ name, path, status, mode, port, gitBranch, gitStat
                                 {name}
                             </h3>
                         </div>
+                        <div className="flex items-center gap-1 mt-1">
+                            {isEnvSwitching ? (
+                                <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-slate-800/80 border border-slate-700/80">
+                                    <div className="h-3 w-3 border-2 border-cyan-500/30 border-t-cyan-500 rounded-full animate-spin" />
+                                    <span className="text-[10px] font-bold text-slate-400 tracking-wide uppercase">Switching...</span>
+                                </div>
+                            ) : envProfiles && envProfiles.length > 0 ? (
+                                <div className="flex items-center rounded-full bg-slate-800/90 border border-slate-700/60 p-0.5 gap-0.5">
+                                    {envProfiles.map((profile) => (
+                                        <button
+                                            key={profile.id}
+                                            onClick={(e) => { e.stopPropagation(); if (activeEnvId !== profile.id) onCommand(path, 'switch-env', { profileId: profile.id }); }}
+                                            className={cn(
+                                                "flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wide transition-all duration-200 whitespace-nowrap",
+                                                activeEnvId === profile.id
+                                                    ? "bg-cyan-500/15 text-cyan-300 shadow-sm border border-cyan-500/30"
+                                                    : "text-slate-500 hover:text-slate-300 hover:bg-slate-700/50 border border-transparent"
+                                            )}
+                                        >
+                                            <div className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: profile.color }} />
+                                            {profile.name}
+                                        </button>
+                                    ))}
+                                    <button
+                                        onClick={(e) => { e.stopPropagation(); onCommand(path, 'open-env-settings', { initialMode: 'add' }); }}
+                                        className="flex items-center justify-center w-5 h-5 rounded-full text-slate-500 hover:text-cyan-400 hover:bg-slate-700/50 transition-all"
+                                        title="Add Profile"
+                                    >
+                                        <Plus className="h-2.5 w-2.5" />
+                                    </button>
+                                </div>
+                            ) : (
+                                <button
+                                    onClick={(e) => { e.stopPropagation(); onCommand(path, 'open-env-settings', { initialMode: 'edit' }); }}
+                                    className="flex items-center gap-1 px-2 py-1 rounded-full bg-slate-800/80 border border-slate-700/60 text-slate-500 hover:text-cyan-400 hover:border-cyan-500/30 transition-all group/env"
+                                >
+                                    <Settings className="h-3 w-3" />
+                                    <span className="text-[9px] font-bold uppercase tracking-wide">Setup Env</span>
+                                </button>
+                            )}
+                            {envProfiles && envProfiles.length > 0 && !isEnvSwitching && (
+                                <button
+                                    onClick={(e) => { e.stopPropagation(); onCommand(path, 'open-env-settings', { initialMode: 'edit' }); }}
+                                    className="flex items-center justify-center w-5 h-5 rounded-full text-slate-600 hover:text-cyan-400 hover:bg-slate-800/80 transition-all"
+                                    title="Edit Profiles"
+                                >
+                                    <Edit2 className="h-2.5 w-2.5" />
+                                </button>
+                            )}
+                        </div>
                     </div>
 
                     <div className="flex items-center gap-1.5 shrink-0" ref={menuRef}>
@@ -138,6 +192,12 @@ export function ServiceCard({ name, path, status, mode, port, gitBranch, gitStat
                                     className="flex w-full items-center gap-2.5 px-4 py-2.5 text-sm text-slate-300 hover:bg-slate-800 hover:text-white transition-all"
                                 >
                                     <GitBranch className="h-4 w-4 text-slate-500" /> Switch Branch...
+                                </button>
+                                <button
+                                    onClick={() => handleAction('open-env-settings', { initialMode: 'edit' })}
+                                    className="flex w-full items-center gap-2.5 px-4 py-2.5 text-sm text-slate-300 hover:bg-slate-800 hover:text-white transition-all"
+                                >
+                                    <Database className="h-4 w-4 text-slate-500" /> Environment...
                                 </button>
                                 <div className="border-t border-slate-800/80 my-1"></div>
                                 <div className="px-3 py-2 text-[10px] font-black text-cyan-500/60 uppercase tracking-widest bg-slate-950/40">
@@ -327,6 +387,7 @@ export function ServiceCard({ name, path, status, mode, port, gitBranch, gitStat
                     </div>
                 </div>
             </div>
+
         </div>
     );
 }

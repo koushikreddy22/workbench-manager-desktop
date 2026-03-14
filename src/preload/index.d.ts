@@ -4,12 +4,12 @@ declare global {
   interface Window {
     electron: ElectronAPI
     api: {
-      selectWorkbench: () => Promise<string | null>
+      selectWorkbench: () => Promise<any>
       getConfig: () => Promise<any>
       getServices: (path: string) => Promise<any>
       controlService: (data: any) => Promise<any>
       getLogs: (data: any) => Promise<any>
-      getGroups: () => Promise<any>
+      getGroups: (data?: any) => Promise<any>
       saveGroups: (data: any) => Promise<any>
       getServiceConfigs: () => Promise<any>
       saveServiceConfig: (data: any) => Promise<any>
@@ -20,6 +20,10 @@ declare global {
       openTerminal: (path: string) => Promise<any>
       openIde: (data: { path: string, ide: string }) => Promise<any>
       checkIdes: () => Promise<any>
+      getEnv: (data: { path: string }) => Promise<any>
+      saveEnv: (data: { path: string, data: any }) => Promise<any>
+      switchEnv: (data: { path: string, profileId: string }) => Promise<any>
+      resetApp: () => Promise<any>
 
       // Terminal
       terminalCreate: (data: { id: string, cwd: string }) => Promise<any>
