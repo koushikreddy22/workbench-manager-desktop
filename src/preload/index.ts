@@ -23,6 +23,19 @@ const api = {
   switchEnv: (data: { path: string, profileId: string }) => ipcRenderer.invoke('switch-env', data),
   resetApp: () => ipcRenderer.invoke('reset-app'),
 
+  // Git
+  getGitProfiles: () => ipcRenderer.invoke('get-git-profiles'),
+  saveGitProfiles: (profiles: any) => ipcRenderer.invoke('save-git-profiles', profiles),
+  gitClone: (data: { url: string, targetPath: string, profile?: any }) => ipcRenderer.invoke('git-clone', data),
+  onGitCloneProgress: (callback: (message: string) => void) => {
+    ipcRenderer.on('git-clone-progress', (_, message) => callback(message));
+    return () => ipcRenderer.removeAllListeners('git-clone-progress');
+  },
+  gitPluginConnect: (data: any) => ipcRenderer.invoke('git-plugin-connect', data),
+  gitPluginListRepos: (data: any) => ipcRenderer.invoke('git-plugin-list-repos', data),
+  gitPluginGetConnections: () => ipcRenderer.invoke('git-plugin-get-connections'),
+  gitPluginRemoveConnection: (data: any) => ipcRenderer.invoke('git-plugin-remove-connection', data),
+
   // Terminal
   terminalCreate: (data: any) => ipcRenderer.invoke('terminal-create', data),
   terminalClose: (data: any) => ipcRenderer.invoke('terminal-close', data),

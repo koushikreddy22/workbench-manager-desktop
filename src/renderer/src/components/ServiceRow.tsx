@@ -152,7 +152,7 @@ export function ServiceRow({ name, path, status, mode, port, gitBranch, gitStatu
                         </button>
                     )}
                 </div>
-                <button 
+                <button
                     onClick={handleCopyPath}
                     className="flex-shrink-0 p-1 rounded hover:bg-slate-800 text-slate-500 hover:text-cyan-400 transition-colors"
                     title="Copy Path"
@@ -181,7 +181,7 @@ export function ServiceRow({ name, path, status, mode, port, gitBranch, gitStatu
             <div className="w-[180px] shrink-0 min-w-0">
                 {gitBranch ? (
                     <div className="flex items-center gap-2 overflow-hidden">
-                        <div 
+                        <div
                             className="flex items-center gap-1.5 px-2 py-0.5 rounded bg-slate-800/50 border border-slate-700/50 text-[10px] text-slate-400 font-mono truncate cursor-pointer hover:border-cyan-500/30"
                             onClick={() => handleAction('git-checkout-modal')}
                         >
@@ -271,7 +271,7 @@ export function ServiceRow({ name, path, status, mode, port, gitBranch, gitStatu
                 >
                     <FileText className="h-3.5 w-3.5" />
                 </button>
-                
+
                 <div className="relative ml-1" ref={menuRef}>
                     <button
                         onClick={toggleMenu}

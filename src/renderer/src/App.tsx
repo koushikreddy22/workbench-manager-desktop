@@ -6,10 +6,14 @@ import { GroupModal } from "./components/GroupModal";
 import { LogModal } from "./components/LogModal";
 import { BranchModal } from "./components/BranchModal";
 import { ServiceSettingsModal } from "./components/ServiceSettingsModal";
+import { GitProfilesModal } from "./components/GitProfilesModal";
+import { CloneRepoModal } from "./components/CloneRepoModal";
+import { GitPluginsModal } from "./components/GitPluginsModal";
 import { HelpModal } from "./components/HelpModal";
 import { EnvSettingsModal } from "./components/EnvSettingsModal";
-import { Loader2, RefreshCw, FolderOpen, Plus, Code, LayoutGrid, List, Search, HelpCircle, X } from "lucide-react";
+import { Loader2, RefreshCw, FolderOpen, Plus, Code, LayoutGrid, List, Search, HelpCircle, X, Shield, Copy, Link, ChevronDown, Github } from "lucide-react";
 import logo from "../../../build/icon.png";
+import { useRef } from "react";
 
 interface Service {
   name: string;
@@ -45,7 +49,7 @@ interface Workbench {
 function App() {
   const [workbenches, setWorkbenches] = useState<Workbench[]>([]);
   const [activeWorkbenchId, setActiveWorkbenchId] = useState<string | null>(null);
-  
+
   const activeWorkbench = workbenches.find(w => w.id === activeWorkbenchId);
   const workbenchPath = activeWorkbench?.path || null;
 
@@ -67,15 +71,15 @@ function App() {
   const [branchModalService, setBranchModalService] = useState<{ name: string, path: string, branch?: string } | null>(null);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [isHelpModalOpen, setIsHelpModalOpen] = useState(false);
-  const [envModalOpen, setEnvModalOpen] = useState<{ 
-    isOpen: boolean; 
-    servicePath: string; 
-    serviceName: string; 
+  const [envModalOpen, setEnvModalOpen] = useState<{
+    isOpen: boolean;
+    servicePath: string;
+    serviceName: string;
     initialMode?: 'add' | 'edit';
     discoveredFiles: string[];
-  }>({ 
-    isOpen: false, 
-    servicePath: '', 
+  }>({
+    isOpen: false,
+    servicePath: '',
     serviceName: '',
     discoveredFiles: []
   });
@@ -84,10 +88,25 @@ function App() {
   const [serviceConfigs, setServiceConfigs] = useState<Record<string, any>>({});
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [settingsModalService, setSettingsModalService] = useState<{ name: string, path: string } | null>(null);
+  const [isGitProfilesModalOpen, setIsGitProfilesModalOpen] = useState(false);
+  const [isCloneRepoModalOpen, setIsCloneRepoModalOpen] = useState(false);
+  const [isGitPluginsModalOpen, setIsGitPluginsModalOpen] = useState(false);
+  const [isGitMenuOpen, setIsGitMenuOpen] = useState(false);
+  const gitMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     loadConfig();
     fetchAvailableIdes();
+  }, []);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (gitMenuRef.current && !gitMenuRef.current.contains(event.target as Node)) {
+        setIsGitMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
   useEffect(() => {
@@ -249,18 +268,18 @@ function App() {
       if (svc) {
         // Fetch env data to get discovered files immediately
         window.api.getEnv({ path }).then(res => {
-          setEnvModalOpen({ 
-            isOpen: true, 
-            servicePath: svc.path, 
+          setEnvModalOpen({
+            isOpen: true,
+            servicePath: svc.path,
             serviceName: svc.name,
             initialMode: (payload?.initialMode === 'add' || payload?.mode === 'add') ? 'add' : 'edit',
             discoveredFiles: res.discoveredFiles || []
           });
         }).catch(err => {
           console.error("Failed to fetch discovered files", err);
-          setEnvModalOpen({ 
-            isOpen: true, 
-            servicePath: svc.path, 
+          setEnvModalOpen({
+            isOpen: true,
+            servicePath: svc.path,
             serviceName: svc.name,
             initialMode: (payload?.initialMode === 'add' || payload?.mode === 'add') ? 'add' : 'edit',
             discoveredFiles: []
@@ -381,10 +400,10 @@ function App() {
       const config = serviceConfigs[path] || {};
       const customCommand = action === 'start' ? (activeMode === 'prod' ? config.prodCommand : config.devCommand) : undefined;
 
-      return window.api.controlService({ 
-        path, 
-        action, 
-        port: service?.port, 
+      return window.api.controlService({
+        path,
+        action,
+        port: service?.port,
         mode: activeMode,
         customCommand
       });
@@ -450,7 +469,7 @@ function App() {
             <h1 className="text-5xl font-black tracking-tight text-white mb-2">
               <span className="bg-gradient-to-r from-indigo-400 via-cyan-400 to-sky-400 bg-clip-text text-transparent">Vantage</span> Dashboard
             </h1>
-            
+
             {/* Workbench Tabs */}
             <div className="flex flex-wrap items-center gap-2 mt-2">
               {workbenches.map(wb => (
@@ -526,6 +545,72 @@ function App() {
               New Cluster
             </button>
 
+            {/* Hexagonal Menu - Git Section */}
+            <div className="relative" ref={gitMenuRef}>
+              <button
+                onClick={() => setIsGitMenuOpen(!isGitMenuOpen)}
+                className={`flex items-center gap-2 px-5 py-2.5 rounded-xl border transition-all font-black text-sm shadow-lg group ${isGitMenuOpen ? 'bg-indigo-600 text-white border-indigo-500 shadow-indigo-500/20' : 'bg-slate-900/60 text-slate-300 border-slate-700/50 hover:border-indigo-500/50 hover:text-white'}`}
+              >
+                <Github className={`h-4 w-4 transition-transform duration-300 ${isGitMenuOpen ? 'rotate-12' : 'group-hover:rotate-12'}`} />
+                <span>Git</span>
+                <ChevronDown className={`h-4 w-4 opacity-50 transition-transform duration-300 ${isGitMenuOpen ? 'rotate-180' : ''}`} />
+              </button>
+
+              {isGitMenuOpen && (
+                <div className="absolute top-full right-0 mt-3 w-56 bg-slate-900/95 backdrop-blur-xl border border-slate-700/50 rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200 z-[60]">
+                  <div className="p-2 space-y-1">
+                    <button
+                      onClick={() => {
+                        setIsCloneRepoModalOpen(true);
+                        setIsGitMenuOpen(false);
+                      }}
+                      className="w-full flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-purple-500/10 text-slate-300 hover:text-purple-400 transition-all group/item text-left"
+                    >
+                      <div className="h-8 w-8 rounded-lg bg-purple-500/10 border border-purple-500/20 flex items-center justify-center group-hover/item:border-purple-500/40">
+                        <Copy className="h-4 w-4 text-purple-400" />
+                      </div>
+                      <div>
+                        <div className="text-sm font-bold">Clone Repository</div>
+                        <div className="text-[10px] text-slate-500">Checkout from remote</div>
+                      </div>
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        setIsGitProfilesModalOpen(true);
+                        setIsGitMenuOpen(false);
+                      }}
+                      className="w-full flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-orange-500/10 text-slate-300 hover:text-orange-400 transition-all group/item text-left"
+                    >
+                      <div className="h-8 w-8 rounded-lg bg-orange-500/10 border border-orange-500/20 flex items-center justify-center group-hover/item:border-orange-500/40">
+                        <Shield className="h-4 w-4 text-orange-400" />
+                      </div>
+                      <div>
+                        <div className="text-sm font-bold">Identity Profiles</div>
+                        <div className="text-[10px] text-slate-500">Manage personas</div>
+                      </div>
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        setIsGitPluginsModalOpen(true);
+                        setIsGitMenuOpen(false);
+                      }}
+                      className="w-full flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-cyan-500/10 text-slate-300 hover:text-cyan-400 transition-all group/item text-left"
+                    >
+                      <div className="h-8 w-8 rounded-lg bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center group-hover/item:border-cyan-500/40">
+                        <Link className="h-4 w-4 text-cyan-400" />
+                      </div>
+                      <div>
+                        <div className="text-sm font-bold">Git Plugins</div>
+                        <div className="text-[10px] text-slate-500">GitHub & Oracle VBS</div>
+                      </div>
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
             {/* 
               We removed the old "Switch Workspace" button from here since we use the
               compact tabs above the title. 
@@ -548,22 +633,6 @@ function App() {
               <HelpCircle className="h-5 w-5" />
             </button>
 
-            <div className="flex bg-slate-900/60 p-1 rounded-xl border border-slate-700/50 ml-4 shadow-inner backdrop-blur-md">
-              <button
-                onClick={() => setViewMode('grid')}
-                className={`p-2 rounded-lg transition-all ${viewMode === 'grid' ? 'bg-cyan-500/20 text-cyan-400 shadow-[0_0_15px_rgba(34,211,238,0.1)] border border-cyan-500/20' : 'text-slate-500 hover:text-slate-300 hover:bg-slate-800/40'}`}
-                title="Grid View"
-              >
-                <LayoutGrid className="h-4 w-4" />
-              </button>
-              <button
-                onClick={() => setViewMode('list')}
-                className={`p-2 rounded-lg transition-all ${viewMode === 'list' ? 'bg-cyan-500/20 text-cyan-400 shadow-[0_0_15px_rgba(34,211,238,0.1)] border border-cyan-500/20' : 'text-slate-500 hover:text-slate-300 hover:bg-slate-800/40'}`}
-                title="List View"
-              >
-                <List className="h-4 w-4" />
-              </button>
-            </div>
           </div>
         </header>
 
@@ -601,6 +670,23 @@ function App() {
                 </span>
                 Active Channels
               </h2>
+
+              <div className="flex bg-slate-900/60 p-1 rounded-xl border border-slate-700/50 shadow-inner backdrop-blur-md">
+                <button
+                  onClick={() => setViewMode('grid')}
+                  className={`p-2 rounded-lg transition-all ${viewMode === 'grid' ? 'bg-cyan-500/20 text-cyan-400 shadow-[0_0_15px_rgba(34,211,238,0.1)] border border-cyan-500/20' : 'text-slate-500 hover:text-slate-300 hover:bg-slate-800/40'}`}
+                  title="Grid View"
+                >
+                  <LayoutGrid className="h-4 w-4" />
+                </button>
+                <button
+                  onClick={() => setViewMode('list')}
+                  className={`p-2 rounded-lg transition-all ${viewMode === 'list' ? 'bg-cyan-500/20 text-cyan-400 shadow-[0_0_15px_rgba(34,211,238,0.1)] border border-cyan-500/20' : 'text-slate-500 hover:text-slate-300 hover:bg-slate-800/40'}`}
+                  title="List View"
+                >
+                  <List className="h-4 w-4" />
+                </button>
+              </div>
             </div>
 
             {isLoading && services.length === 0 ? (
@@ -710,17 +796,37 @@ function App() {
       />
 
       <EnvSettingsModal
-          isOpen={envModalOpen.isOpen}
-          onClose={() => setEnvModalOpen(prev => ({ ...prev, isOpen: false }))}
-          servicePath={envModalOpen.servicePath}
-          serviceName={envModalOpen.serviceName}
-          initialMode={envModalOpen.initialMode}
-          onSaved={() => {
-            if (activeWorkbenchId && workbenchPath) {
-               fetchData();
-            }
-          }}
-          discoveredFiles={envModalOpen.discoveredFiles}
+        isOpen={envModalOpen.isOpen}
+        onClose={() => setEnvModalOpen(prev => ({ ...prev, isOpen: false }))}
+        servicePath={envModalOpen.servicePath}
+        serviceName={envModalOpen.serviceName}
+        initialMode={envModalOpen.initialMode}
+        onSaved={() => {
+          if (activeWorkbenchId && workbenchPath) {
+            fetchData();
+          }
+        }}
+        discoveredFiles={envModalOpen.discoveredFiles}
+      />
+
+      <GitProfilesModal
+        isOpen={isGitProfilesModalOpen}
+        onClose={() => setIsGitProfilesModalOpen(false)}
+      />
+
+      <GitPluginsModal
+        isOpen={isGitPluginsModalOpen}
+        onClose={() => setIsGitPluginsModalOpen(false)}
+      />
+
+      <CloneRepoModal
+        isOpen={isCloneRepoModalOpen}
+        onClose={() => setIsCloneRepoModalOpen(false)}
+        workbenchPath={workbenchPath || ""}
+        onCloneSuccess={() => {
+          setIsRefreshing(true);
+          fetchData();
+        }}
       />
     </main>
   );

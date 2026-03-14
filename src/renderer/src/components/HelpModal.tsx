@@ -1,4 +1,4 @@
-import { X, BookOpen, Rocket, Play, Settings, GitBranch, Terminal, FolderOpen, LayoutGrid, Wrench, Code } from "lucide-react";
+import { X, BookOpen, Rocket, Play, Settings, GitBranch, Terminal, FolderOpen, LayoutGrid, Wrench, Code, Shield, Copy } from "lucide-react";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 
@@ -232,6 +232,20 @@ export function HelpModal({ isOpen, onClose, onReset }: HelpModalProps) {
                                             <div>
                                                 <strong className="text-white block mb-0.5">Pull Latest</strong>
                                                 <span className="text-sm text-slate-400">Click the circular sync arrow to run `git pull` instantly for that service and fetch the latest code.</span>
+                                            </div>
+                                        </li>
+                                        <li className="flex items-start gap-3 bg-orange-500/10 p-4 rounded-xl border border-orange-500/20">
+                                            <div className="mt-0.5 text-orange-400 font-bold">&#8226;</div>
+                                            <div>
+                                                <strong className="text-white block mb-0.5">Identity Profiles</strong>
+                                                <span className="text-sm text-slate-400">Use the <Shield className="inline h-3 w-3 mb-0.5" /> <strong>Identity</strong> button to save multiple Git names and emails (e.g., Work vs Personal). These can be applied automatically when cloning.</span>
+                                            </div>
+                                        </li>
+                                        <li className="flex items-start gap-3 bg-purple-500/10 p-4 rounded-xl border border-purple-500/20">
+                                            <div className="mt-0.5 text-purple-400 font-bold">&#8226;</div>
+                                            <div>
+                                                <strong className="text-white block mb-0.5">Repository Cloning</strong>
+                                                <span className="text-sm text-slate-400">Use the <Copy className="inline h-3 w-3 mb-0.5" /> <strong>Clone Repo</strong> button to pull new projects into your workbench. Vantage will automatically apply your selected Identity Profile to the repository's local config upon completion.</span>
                                             </div>
                                         </li>
                                     </ul>

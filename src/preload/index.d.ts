@@ -25,6 +25,16 @@ declare global {
       switchEnv: (data: { path: string, profileId: string }) => Promise<any>
       resetApp: () => Promise<any>
 
+      // Git
+      getGitProfiles: () => Promise<any>
+      saveGitProfiles: (profiles: any) => Promise<any>
+      gitClone: (data: { url: string, targetPath: string, profile?: any }) => Promise<any>
+      onGitCloneProgress: (callback: (message: string) => void) => () => void
+      gitPluginConnect: (data: { providerId: string, token: string, name: string, baseUrl?: string }) => Promise<any>
+      gitPluginListRepos: (data: { connectionId: string }) => Promise<any>
+      gitPluginGetConnections: () => Promise<any[]>
+      gitPluginRemoveConnection: (data: { id: string }) => Promise<any>
+
       // Terminal
       terminalCreate: (data: { id: string, cwd: string }) => Promise<any>
       terminalClose: (data: { id: string }) => Promise<any>

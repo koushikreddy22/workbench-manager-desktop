@@ -92,7 +92,7 @@ export function ServiceCard({ name, path, status, mode, port, gitBranch, gitStat
     return (
         <div className={cn(
             "group relative rounded-2xl border transition-all duration-300 shadow-2xl backdrop-blur-md p-6",
-            status === "running" 
+            status === "running"
                 ? mode === "prod"
                     ? "bg-amber-950/20 border-amber-500/30 hover:border-amber-500/60 hover:shadow-amber-500/10 hover:bg-amber-950/30"
                     : "bg-cyan-950/20 border-cyan-500/30 hover:border-cyan-500/60 hover:shadow-cyan-500/10 hover:bg-cyan-950/30"
@@ -258,7 +258,7 @@ export function ServiceCard({ name, path, status, mode, port, gitBranch, gitStat
                 <div className="space-y-4">
                     <div className="flex items-center justify-between text-[11px] mt-2 bg-slate-950/60 rounded-xl p-3 border border-slate-800/80 text-slate-400 group-hover:border-cyan-500/40 transition-all shadow-inner">
                         <span className="opacity-70 flex items-center gap-2 font-bold uppercase tracking-tighter"><FolderOpen className="h-3.5 w-3.5 text-cyan-500" /> Location</span>
-                        <button 
+                        <button
                             onClick={handleCopyPath}
                             className="flex items-center gap-1.5 px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-cyan-400 font-mono transition-all text-[10px]"
                         >
@@ -333,10 +333,10 @@ export function ServiceCard({ name, path, status, mode, port, gitBranch, gitStat
                                         key={idx}
                                         onClick={() => handleAction('custom-command', { command: btn.command, name: btn.name })}
                                         disabled={actionLoading === 'custom-command'}
-                                        style={{ 
-                                            backgroundColor: `${btn.color}15`, 
+                                        style={{
+                                            backgroundColor: `${btn.color}15`,
                                             borderColor: `${btn.color}30`,
-                                            color: btn.color 
+                                            color: btn.color
                                         }}
                                         className="flex-1 min-w-[80px] flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-lg text-[10px] font-black transition-all border hover:bg-opacity-20 cursor-pointer"
                                     >

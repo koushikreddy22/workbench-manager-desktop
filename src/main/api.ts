@@ -5,6 +5,7 @@ import { spawn, exec } from 'child_process';
 import util from 'util';
 import os from 'os';
 import { processManager } from './processManager';
+import { gitPluginManager } from './gitPlugins';
 const dotenv = require('dotenv');
 
 const execAsync = util.promisify(exec);
@@ -552,5 +553,89 @@ export function setupIpcHandlers() {
         }));
 
         return available.filter(Boolean);
+    });
+
+    // Git Profiles
+    const getGitProfilesPath = () => path.join(app.getPath('userData'), 'git-profiles.json');
+    ipcMain.handle('get-git-profiles', () => {
+        const p = getGitProfilesPath();
+        if (fs.existsSync(p)) {
+            try { return JSON.parse(fs.readFileSync(p, 'utf8')); } catch (e) { }
+        }
+        return { profiles: [] };
+    });
+
+    ipcMain.handle('save-git-profiles', (_, profiles) => {
+        const p = getGitProfilesPath();
+        fs.writeFileSync(p, JSON.stringify(profiles, null, 2));
+        return { success: true };
+    });
+
+    // Git Clone
+    ipcMain.handle('git-clone', async (event, { url, targetPath, profile }) => {
+        return new Promise((resolve) => {
+            // Ensure target parent directory exists
+            const parentDir = path.dirname(targetPath);
+            if (!fs.existsSync(parentDir)) {
+                fs.mkdirSync(parentDir, { recursive: true });
+            }
+
+            const child = spawn('git', ['clone', '--progress', url, targetPath]);
+            
+            child.stderr.on('data', (data) => {
+                const message = data.toString();
+                event.sender.send('git-clone-progress', message);
+            });
+
+            child.stdout.on('data', (data) => {
+                const message = data.toString();
+                event.sender.send('git-clone-progress', message);
+            });
+
+            child.on('close', async (code) => {
+                if (code === 0 && profile) {
+                    try {
+                        // Apply git profile to the newly cloned repo
+                        await execAsync(`git config user.name "${profile.name}"`, { cwd: targetPath });
+                        await execAsync(`git config user.email "${profile.email}"`, { cwd: targetPath });
+                    } catch (e) {
+                        console.error('Failed to apply git profile:', e);
+                    }
+                }
+                resolve({ success: code === 0, code });
+            });
+
+            child.on('error', (err) => {
+                console.error('Git clone spawn error:', err);
+                resolve({ success: false, error: err.message });
+            });
+        });
+    });
+
+    // Git Plugins
+    ipcMain.handle('git-plugin-connect', async (_, { providerId, token, name, baseUrl }) => {
+        if (providerId === 'github') {
+            return await gitPluginManager.connectGitHub(token, name);
+        } else if (providerId === 'oracle-vbs') {
+            return await gitPluginManager.connectOracleVBS(token, name, baseUrl);
+        }
+        return { success: false, error: 'Unknown provider' };
+    });
+
+    ipcMain.handle('git-plugin-list-repos', async (_, { connectionId }) => {
+        try {
+            const repos = await gitPluginManager.listRepositories(connectionId);
+            return { success: true, repos };
+        } catch (e: any) {
+            return { success: false, error: e.message };
+        }
+    });
+
+    ipcMain.handle('git-plugin-get-connections', () => {
+        return gitPluginManager.getConnections();
+    });
+
+    ipcMain.handle('git-plugin-remove-connection', (_, { id }) => {
+        return gitPluginManager.removeConnection(id);
     });
 }
