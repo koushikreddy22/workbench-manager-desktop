@@ -24,6 +24,12 @@ declare global {
       saveEnv: (data: { path: string, data: any }) => Promise<any>
       switchEnv: (data: { path: string, profileId: string }) => Promise<any>
       resetApp: () => Promise<any>
+      clearLogs: (data: { path: string }) => Promise<any>
+      archiveService: (data: { workbenchPath: string, serviceName: string }) => Promise<any>
+      getArchivedServices: (workbenchPath: string) => Promise<any>
+      restoreService: (data: { workbenchPath: string, serviceName: string }) => Promise<any>
+      deleteArchivedService: (params: { workbenchPath: string, serviceName: string }) => Promise<{ success: boolean }>;
+      addService: (params: { workbenchPath: string }) => Promise<{ success: boolean }>;
 
       // Git
       getGitProfiles: () => Promise<any>

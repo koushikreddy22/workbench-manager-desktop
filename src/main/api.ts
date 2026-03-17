@@ -251,6 +251,99 @@ export function setupIpcHandlers() {
         return { services: services.filter(Boolean) };
     });
 
+    ipcMain.handle('archive-service', async (_, { workbenchPath, serviceName }) => {
+        const archiveDir = path.join(workbenchPath, '.vantage-archive');
+        if (!fs.existsSync(archiveDir)) fs.mkdirSync(archiveDir, { recursive: true });
+
+        const sourcePath = path.join(workbenchPath, serviceName);
+        const destPath = path.join(archiveDir, serviceName);
+
+        if (fs.existsSync(destPath)) {
+            // Collision handling: Rename existing archive with timestamp
+            const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+            const renamedPath = path.join(archiveDir, `${serviceName}_ARCHIVED_${timestamp}`);
+            fs.renameSync(destPath, renamedPath);
+        }
+
+        fs.renameSync(sourcePath, destPath);
+        return { success: true };
+    });
+
+    ipcMain.handle('get-archived-services', async (_, workbenchPath) => {
+        const archiveDir = path.join(workbenchPath, '.vantage-archive');
+        if (!fs.existsSync(archiveDir)) return { services: [] };
+
+        const entries = fs.readdirSync(archiveDir, { withFileTypes: true });
+        const services = entries
+            .filter(entry => entry.isDirectory())
+            .map(entry => {
+                const stats = fs.statSync(path.join(archiveDir, entry.name));
+                return {
+                    name: entry.name,
+                    archivedAt: stats.mtime.toISOString(),
+                    path: path.join(archiveDir, entry.name)
+                };
+            })
+            .sort((a, b) => new Date(b.archivedAt).getTime() - new Date(a.archivedAt).getTime());
+
+        return { services };
+    });
+
+    ipcMain.handle('restore-service', async (_, { workbenchPath, serviceName }) => {
+        const archiveDir = path.join(workbenchPath, '.vantage-archive');
+        const sourcePath = path.join(archiveDir, serviceName);
+        const destPath = path.join(workbenchPath, serviceName);
+
+        if (fs.existsSync(destPath)) {
+            throw new Error(`A service with name "${serviceName}" already exists in the workbench. Please rename or delete it first.`);
+        }
+
+        fs.renameSync(sourcePath, destPath);
+        return { success: true };
+    });
+
+    ipcMain.handle('delete-archived-service', async (_, { workbenchPath, serviceName }) => {
+        const archiveDir = path.join(workbenchPath, '.vantage-archive');
+        const servicePath = path.join(archiveDir, serviceName);
+        if (fs.existsSync(servicePath)) {
+            fs.rmSync(servicePath, { recursive: true, force: true });
+        }
+        return { success: true };
+    });
+
+    ipcMain.handle('add-service', async (_, { workbenchPath }) => {
+        const result = await dialog.showOpenDialog({
+            properties: ['openDirectory'],
+            title: 'Select Service Directory to Import'
+        });
+
+        if (!result.canceled && result.filePaths.length > 0) {
+            const sourcePath = result.filePaths[0];
+            const serviceName = path.basename(sourcePath);
+            const destPath = path.join(workbenchPath, serviceName);
+
+            if (fs.existsSync(destPath)) {
+                throw new Error(`A service named "${serviceName}" already exists in this workbench.`);
+            }
+
+            try {
+                // We'll use rename (move) as it's faster and cleaner for workspace management
+                fs.renameSync(sourcePath, destPath);
+                return { success: true };
+            } catch (err: any) {
+                // If rename fails (e.g. across drives), try recursive copy then delete
+                try {
+                    fs.cpSync(sourcePath, destPath, { recursive: true });
+                    fs.rmSync(sourcePath, { recursive: true, force: true });
+                    return { success: true };
+                } catch (copyErr: any) {
+                    throw new Error(`Failed to import service: ${copyErr.message}`);
+                }
+            }
+        }
+        return { success: false };
+    });
+
     // Control
     ipcMain.handle('control-service', async (_, { path: servicePath, action, port, mode, customCommand }) => {
         if (action === 'start') {

@@ -9,6 +9,7 @@ import { ServiceSettingsModal } from "./components/ServiceSettingsModal";
 import { GitProfilesModal } from "./components/GitProfilesModal";
 import { CloneRepoModal } from "./components/CloneRepoModal";
 import { GitPluginsModal } from "./components/GitPluginsModal";
+import { ArchivedServicesModal } from "./components/ArchivedServicesModal";
 import { HelpModal } from "./components/HelpModal";
 import { EnvSettingsModal } from "./components/EnvSettingsModal";
 import { Loader2, RefreshCw, FolderOpen, Plus, Code, LayoutGrid, List, Search, HelpCircle, X, Shield, Copy, Link, ChevronDown, Github } from "lucide-react";
@@ -92,6 +93,7 @@ function App() {
   const [isCloneRepoModalOpen, setIsCloneRepoModalOpen] = useState(false);
   const [isGitPluginsModalOpen, setIsGitPluginsModalOpen] = useState(false);
   const [isGitMenuOpen, setIsGitMenuOpen] = useState(false);
+  const [isArchivedModalOpen, setIsArchivedModalOpen] = useState(false);
   const gitMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -300,6 +302,15 @@ function App() {
       return;
     }
 
+    if (action === 'archive') {
+      const svc = services.find((s) => s.path === path);
+      if (svc && workbenchPath) {
+        await window.api.archiveService({ workbenchPath, serviceName: svc.name });
+        fetchData();
+      }
+      return;
+    }
+
     if (action.startsWith('npm-')) {
       const cmdAction = action.replace('npm-', '');
       const config = serviceConfigs[path] || {};
@@ -314,6 +325,19 @@ function App() {
     }
 
     setTimeout(fetchData, 1000);
+  };
+
+  const handleAddService = async () => {
+    if (!workbenchPath) return;
+    try {
+      const res = await window.api.addService({ workbenchPath });
+      if (res.success) {
+        fetchData();
+      }
+    } catch (err: any) {
+      console.error("Failed to add service:", err);
+      alert(err.message || "Failed to add service.");
+    }
   };
 
   const handleCheckoutBranch = async (path: string, branch: string) => {
@@ -509,9 +533,10 @@ function App() {
               <button
                 onClick={handleSelectWorkbench}
                 title="Add Workspace"
-                className="px-2 py-1 bg-slate-800/40 border border-slate-700/50 rounded-lg text-slate-400 hover:text-cyan-400 hover:border-cyan-500/50 transition-all flex items-center justify-center"
+                className="px-3 py-1 bg-slate-800/40 border border-slate-700/50 rounded-lg text-slate-400 hover:text-cyan-400 hover:border-cyan-500/50 transition-all flex items-center gap-2 text-[10px] font-bold"
               >
                 <Plus className="h-3.5 w-3.5" />
+                <span>New Workbench</span>
               </button>
             </div>
 
@@ -632,7 +657,6 @@ function App() {
             >
               <HelpCircle className="h-5 w-5" />
             </button>
-
           </div>
         </header>
 
@@ -671,21 +695,39 @@ function App() {
                 Active Channels
               </h2>
 
-              <div className="flex bg-slate-900/60 p-1 rounded-xl border border-slate-700/50 shadow-inner backdrop-blur-md">
+              <div className="flex items-center gap-3">
                 <button
-                  onClick={() => setViewMode('grid')}
-                  className={`p-2 rounded-lg transition-all ${viewMode === 'grid' ? 'bg-cyan-500/20 text-cyan-400 shadow-[0_0_15px_rgba(34,211,238,0.1)] border border-cyan-500/20' : 'text-slate-500 hover:text-slate-300 hover:bg-slate-800/40'}`}
-                  title="Grid View"
+                  onClick={handleAddService}
+                  className="flex items-center gap-2 px-4 py-1.5 rounded-xl bg-slate-900/60 border border-slate-700/50 text-slate-400 hover:text-cyan-400 hover:border-cyan-500/30 transition-all font-bold text-xs shadow-inner"
                 >
-                  <LayoutGrid className="h-4 w-4" />
+                  <Plus className="h-3.5 w-3.5" />
+                  Add Channel
                 </button>
-                <button
-                  onClick={() => setViewMode('list')}
-                  className={`p-2 rounded-lg transition-all ${viewMode === 'list' ? 'bg-cyan-500/20 text-cyan-400 shadow-[0_0_15px_rgba(34,211,238,0.1)] border border-cyan-500/20' : 'text-slate-500 hover:text-slate-300 hover:bg-slate-800/40'}`}
-                  title="List View"
-                >
-                  <List className="h-4 w-4" />
-                </button>
+
+                <div className="flex bg-slate-900/60 p-1 rounded-xl border border-slate-700/50 shadow-inner backdrop-blur-md items-center">
+                  <button
+                    onClick={() => setIsArchivedModalOpen(true)}
+                    className="p-2 rounded-lg text-slate-500 hover:text-amber-400 hover:bg-slate-800/40 transition-all"
+                    title="Archived Services"
+                  >
+                    <FolderOpen className="h-4 w-4" />
+                  </button>
+                  <div className="w-px h-4 bg-slate-800 mx-1"></div>
+                  <button
+                    onClick={() => setViewMode('grid')}
+                    className={`p-2 rounded-lg transition-all ${viewMode === 'grid' ? 'bg-cyan-500/20 text-cyan-400 shadow-[0_0_15px_rgba(34,211,238,0.1)] border border-cyan-500/20' : 'text-slate-500 hover:text-slate-300 hover:bg-slate-800/40'}`}
+                    title="Grid View"
+                  >
+                    <LayoutGrid className="h-4 w-4" />
+                  </button>
+                  <button
+                    onClick={() => setViewMode('list')}
+                    className={`p-2 rounded-lg transition-all ${viewMode === 'list' ? 'bg-cyan-500/20 text-cyan-400 shadow-[0_0_15px_rgba(34,211,238,0.1)] border border-cyan-500/20' : 'text-slate-500 hover:text-slate-300 hover:bg-slate-800/40'}`}
+                    title="List View"
+                  >
+                    <List className="h-4 w-4" />
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -793,6 +835,13 @@ function App() {
         isOpen={isHelpModalOpen}
         onClose={() => setIsHelpModalOpen(false)}
         onReset={() => window.api.resetApp()}
+      />
+
+      <ArchivedServicesModal
+        isOpen={isArchivedModalOpen}
+        onClose={() => setIsArchivedModalOpen(false)}
+        workbenchPath={workbenchPath || ""}
+        onRestore={() => fetchData()}
       />
 
       <EnvSettingsModal

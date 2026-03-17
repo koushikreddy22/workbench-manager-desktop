@@ -22,6 +22,12 @@ const api = {
   saveEnv: (data: { path: string, data: any }) => ipcRenderer.invoke('save-env', data),
   switchEnv: (data: { path: string, profileId: string }) => ipcRenderer.invoke('switch-env', data),
   resetApp: () => ipcRenderer.invoke('reset-app'),
+  clearLogs: (data: any) => ipcRenderer.invoke('clear-logs', data),
+  archiveService: (data: { workbenchPath: string, serviceName: string }) => ipcRenderer.invoke('archive-service', data),
+  getArchivedServices: (workbenchPath: string) => ipcRenderer.invoke('get-archived-services', workbenchPath),
+  restoreService: (data: { workbenchPath: string, serviceName: string }) => ipcRenderer.invoke('restore-service', data),
+  deleteArchivedService: (params: { workbenchPath: string, serviceName: string }) => ipcRenderer.invoke('delete-archived-service', params),
+  addService: (params: { workbenchPath: string }) => ipcRenderer.invoke('add-service', params),
 
   // Git
   getGitProfiles: () => ipcRenderer.invoke('get-git-profiles'),

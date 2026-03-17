@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
-import { FileText, GitBranch, MoreVertical, Download, Settings, RefreshCw, Wrench, Code, Copy, Check, Database, Plus, Edit2 } from "lucide-react";
+import { FileText, GitBranch, MoreVertical, Download, Settings, RefreshCw, Wrench, Code, Copy, Check, Database, Plus, Edit2, Archive } from "lucide-react";
 import { cn } from "../lib/utils";
 
 interface GitStatus {
@@ -310,6 +310,12 @@ export function ServiceRow({ name, path, status, mode, port, gitBranch, gitStatu
                                 className="flex w-full items-center gap-2.5 px-4 py-2.5 text-sm text-slate-300 hover:bg-slate-800 hover:text-white transition-all"
                             >
                                 <Database className="h-4 w-4 text-slate-500" /> Environment...
+                            </button>
+                            <button
+                                onClick={() => handleAction('archive')}
+                                className="flex w-full items-center gap-2.5 px-4 py-2 text-sm text-slate-300 hover:bg-slate-800 hover:text-amber-400 transition-all underline-offset-4"
+                            >
+                                <Archive className="h-4 w-4 text-slate-500 group-hover:text-amber-400" /> Archive Channel
                             </button>
                             <div className="border-t border-slate-800/80 my-1"></div>
                             <button
