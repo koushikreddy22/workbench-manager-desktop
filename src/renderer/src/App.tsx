@@ -914,7 +914,7 @@ function App() {
         workbenchPath={workbenchPath || ""}
         onCloneSuccess={() => {
           setIsRefreshing(true);
-          fetchData();
+          fetchData(true);
         }}
       />
     </main>

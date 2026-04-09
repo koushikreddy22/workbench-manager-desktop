@@ -180,18 +180,29 @@ export function setupIpcHandlers() {
 
         const cachePath = path.join(app.getPath('userData'), 'services-cache.json');
         
-        // Return cached services if not forcing a refresh
+        // Fast directory list check to see if we even CAN use the cache
+        const currentEntries = fs.readdirSync(workbenchPath, { withFileTypes: true })
+            .filter(entry => entry.isDirectory() && entry.name !== 'service-dashboard' && entry.name !== 'service-dashboard-desktop' && !entry.name.startsWith('.'))
+            .map(entry => entry.name)
+            .sort();
+
+        // Return cached services if not forcing a refresh AND directory structure is identical
         if (!forceRefresh && fs.existsSync(cachePath)) {
             try {
                 const cachedData = JSON.parse(fs.readFileSync(cachePath, 'utf8'));
-                // Merge with live status from processManager
-                const mergedServices = await Promise.all(cachedData.services.map(async (svc: any) => {
-                    const status = await processManager.getServiceStatus(svc.path);
-                    return { ...svc, status: status.status, mode: status.mode };
-                }));
-                return { services: mergedServices };
+                const cachedEntries = cachedData.services.map((s: any) => path.basename(s.path)).sort();
+
+                // If the directory structure is exactly the same, use the cache
+                if (JSON.stringify(currentEntries) === JSON.stringify(cachedEntries)) {
+                    // Merge with live status from processManager
+                    const mergedServices = await Promise.all(cachedData.services.map(async (svc: any) => {
+                        const status = await processManager.getServiceStatus(svc.path);
+                        return { ...svc, status: status.status, mode: status.mode };
+                    }));
+                    return { services: mergedServices };
+                }
             } catch (e) {
-                console.error('Failed to load services cache:', e);
+                console.error('Failed to load or validate services cache:', e);
             }
         }
 
