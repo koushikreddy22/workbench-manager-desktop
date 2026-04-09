@@ -10,6 +10,54 @@ const dotenv = require('dotenv');
 
 const execAsync = util.promisify(exec);
 
+// Task queue to limit concurrent git processes and prevent "process explosion"
+class TaskQueue {
+    private queue: (() => Promise<any>)[] = [];
+    private running = 0;
+    private maxConcurrent: number;
+
+    constructor(maxConcurrent = 3) {
+        this.maxConcurrent = maxConcurrent;
+    }
+
+    async add<T>(task: () => Promise<T>): Promise<T> {
+        return new Promise((resolve, reject) => {
+            this.queue.push(async () => {
+                try {
+                    const result = await task();
+                    resolve(result);
+                } catch (err) {
+                    reject(err);
+                }
+            });
+            this.next();
+        });
+    }
+
+    private async next() {
+        if (this.running >= this.maxConcurrent || this.queue.length === 0) return;
+        this.running++;
+        const task = this.queue.shift()!;
+        try {
+            await task();
+        } finally {
+            this.running--;
+            this.next();
+        }
+    }
+}
+
+const gitQueue = new TaskQueue(3);
+
+// Suppress all interactive prompts for background git commands
+const GIT_ENV = {
+    ...process.env,
+    GIT_TERMINAL_PROMPT: '0',
+    GCM_INTERACTIVE: 'never',
+    GIT_ASKPASS: 'true',
+    LC_ALL: 'C'
+};
+
 function discoverEnvFiles(basePath: string): string[] {
     const envFiles: string[] = [];
     try {
@@ -127,8 +175,25 @@ export function setupIpcHandlers() {
     });
 
     // Services
-    ipcMain.handle('get-services', async (_, workbenchPath: string) => {
+    ipcMain.handle('get-services', async (_, workbenchPath: string, forceRefresh = false) => {
         if (!workbenchPath || !fs.existsSync(workbenchPath)) return { services: [] };
+
+        const cachePath = path.join(app.getPath('userData'), 'services-cache.json');
+        
+        // Return cached services if not forcing a refresh
+        if (!forceRefresh && fs.existsSync(cachePath)) {
+            try {
+                const cachedData = JSON.parse(fs.readFileSync(cachePath, 'utf8'));
+                // Merge with live status from processManager
+                const mergedServices = await Promise.all(cachedData.services.map(async (svc: any) => {
+                    const status = await processManager.getServiceStatus(svc.path);
+                    return { ...svc, status: status.status, mode: status.mode };
+                }));
+                return { services: mergedServices };
+            } catch (e) {
+                console.error('Failed to load services cache:', e);
+            }
+        }
 
         const envsPath = path.join(app.getPath('userData'), 'environments.json');
         let globalEnvs: any = {};
@@ -167,29 +232,39 @@ export function setupIpcHandlers() {
 
                     let gitBranch, gitStatus;
                     try {
-                        const { stdout: statusOutput } = await execAsync('git status --branch --porcelain', { cwd: fullPath });
-                        const lines = statusOutput.split('\n');
-                        const branchLine = lines[0]; // e.g. "## main...origin/main [ahead 1, behind 2]"
-                        
-                        if (branchLine.startsWith('## ')) {
-                            const branchInfo = branchLine.substring(3);
-                            if (branchInfo.includes('...')) {
-                                gitBranch = branchInfo.split('...')[0];
-                                
-                                const aheadMatch = branchInfo.match(/ahead\s+(\d+)/);
-                                const behindMatch = branchInfo.match(/behind\s+(\d+)/);
-                                
-                                gitStatus = { 
-                                    ahead: aheadMatch ? parseInt(aheadMatch[1], 10) : 0, 
-                                    behind: behindMatch ? parseInt(behindMatch[1], 10) : 0,
-                                    hasLocalChanges: false 
-                                };
-                            } else {
-                                gitBranch = branchInfo.trim();
-                                gitStatus = { ahead: 0, behind: 0, hasLocalChanges: false };
+                        // Use the queue to limit concurrent git processes
+                        const statusOutput = await gitQueue.add(() => 
+                            execAsync('git status --branch --porcelain', { 
+                                cwd: fullPath, 
+                                env: GIT_ENV,
+                                timeout: 10000 // 10s timeout
+                            })
+                        ).then(res => res.stdout).catch(() => null);
+
+                        if (statusOutput) {
+                            const lines = statusOutput.split('\n');
+                            const branchLine = lines[0]; // e.g. "## main...origin/main [ahead 1, behind 2]"
+                            
+                            if (branchLine.startsWith('## ')) {
+                                const branchInfo = branchLine.substring(3);
+                                if (branchInfo.includes('...')) {
+                                    gitBranch = branchInfo.split('...')[0];
+                                    
+                                    const aheadMatch = branchInfo.match(/ahead\s+(\d+)/);
+                                    const behindMatch = branchInfo.match(/behind\s+(\d+)/);
+                                    
+                                    gitStatus = { 
+                                        ahead: aheadMatch ? parseInt(aheadMatch[1], 10) : 0, 
+                                        behind: behindMatch ? parseInt(behindMatch[1], 10) : 0,
+                                        hasLocalChanges: false 
+                                    };
+                                } else {
+                                    gitBranch = branchInfo.trim();
+                                    gitStatus = { ahead: 0, behind: 0, hasLocalChanges: false };
+                                }
                             }
+                            gitStatus.hasLocalChanges = lines.slice(1).some(line => line.trim().length > 0);
                         }
-                        gitStatus.hasLocalChanges = lines.slice(1).some(line => line.trim().length > 0);
                     } catch (e) { }
 
                     const serviceStatus = await processManager.getServiceStatus(fullPath);
@@ -248,7 +323,17 @@ export function setupIpcHandlers() {
                 return null;
             })
         );
-        return { services: services.filter(Boolean) };
+
+        const filteredServices = services.filter(Boolean);
+        
+        // Save to cache
+        try {
+            fs.writeFileSync(cachePath, JSON.stringify({ services: filteredServices }, null, 2));
+        } catch (e) {
+            console.error('Failed to save services cache:', e);
+        }
+
+        return { services: filteredServices };
     });
 
     ipcMain.handle('archive-service', async (_, { workbenchPath, serviceName }) => {
@@ -527,11 +612,11 @@ export function setupIpcHandlers() {
     // Git
     ipcMain.handle('git-command', async (_, { action, path: repoPath, branch }) => {
         try {
-            if (action === 'checkout') await execAsync(`git checkout ${branch}`, { cwd: repoPath });
-            else if (action === 'pull') await execAsync('git pull', { cwd: repoPath });
+            if (action === 'checkout') await gitQueue.add(() => execAsync(`git checkout ${branch}`, { cwd: repoPath, env: GIT_ENV }));
+            else if (action === 'pull') await gitQueue.add(() => execAsync('git pull', { cwd: repoPath, env: GIT_ENV }));
             else if (action === 'get-branches') {
                 // Highly optimized branch listing for large repositories
-                const { stdout } = await execAsync('git for-each-ref --format="%(refname:short)" refs/heads/ refs/remotes/origin/', { cwd: repoPath });
+                const { stdout } = await gitQueue.add(() => execAsync('git for-each-ref --format="%(refname:short)" refs/heads/ refs/remotes/origin/', { cwd: repoPath, env: GIT_ENV }));
                 const branches = stdout.split('\n')
                     .map(b => b.trim().replace('origin/', ''))
                     .filter(b => b && !b.includes('HEAD'));
@@ -673,7 +758,9 @@ export function setupIpcHandlers() {
                 fs.mkdirSync(parentDir, { recursive: true });
             }
 
-            const child = spawn('git', ['clone', '--progress', url, targetPath]);
+            const child = spawn('git', ['clone', '--progress', url, targetPath], {
+                env: GIT_ENV
+            });
             
             child.stderr.on('data', (data) => {
                 const message = data.toString();
@@ -689,8 +776,8 @@ export function setupIpcHandlers() {
                 if (code === 0 && profile) {
                     try {
                         // Apply git profile to the newly cloned repo
-                        await execAsync(`git config user.name "${profile.name}"`, { cwd: targetPath });
-                        await execAsync(`git config user.email "${profile.email}"`, { cwd: targetPath });
+                        await gitQueue.add(() => execAsync(`git config user.name "${profile.name}"`, { cwd: targetPath, env: GIT_ENV }));
+                        await gitQueue.add(() => execAsync(`git config user.email "${profile.email}"`, { cwd: targetPath, env: GIT_ENV }));
                     } catch (e) {
                         console.error('Failed to apply git profile:', e);
                     }

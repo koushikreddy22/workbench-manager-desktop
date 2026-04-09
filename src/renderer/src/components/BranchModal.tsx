@@ -91,24 +91,24 @@ export function BranchModal({
                         />
                     </div>
 
-                    <div className="mt-4 border border-gray-200 dark:border-neutral-700 rounded-lg overflow-hidden bg-gray-50 dark:bg-neutral-900/50">
+                    <div className="mt-4 border border-slate-800/60 rounded-xl overflow-hidden bg-slate-950/50 shadow-inner">
                         {isLoading ? (
                             <div className="flex justify-center items-center py-8">
                                 <Loader2 className="h-6 w-6 animate-spin text-indigo-500" />
                             </div>
                         ) : (
-                            <div className="max-h-60 overflow-y-auto w-full">
+                            <div className="max-h-60 overflow-y-auto w-full custom-scrollbar">
                                 {filteredBranches.length === 0 ? (
-                                    <div className="py-8 text-center text-sm text-gray-500">
+                                    <div className="py-8 text-center text-sm text-slate-500">
                                         No branches found
                                     </div>
                                 ) : (
-                                    <ul className="divide-y divide-slate-800/50">
+                                    <ul className="divide-y divide-slate-800/40">
                                         {filteredBranches.map((branch) => (
                                             <li key={branch}>
                                                 <button
                                                     onClick={() => handleCheckout(branch)}
-                                                    className={`w-full text-left px-5 py-4 text-sm hover:bg-slate-800/40 transition-all flex items-center gap-3 group relative ${currentBranch === branch ? 'bg-indigo-500/5 text-indigo-400 font-bold' : 'text-slate-300 hover:text-white'}`}
+                                                    className={`w-full text-left px-5 py-4 text-sm hover:bg-slate-800/40 transition-all flex items-center gap-3 group relative ${currentBranch === branch ? 'bg-indigo-500/10 text-indigo-400 font-bold' : 'text-slate-200 hover:text-white'}`}
                                                 >
                                                     <GitBranch className={`h-4 w-4 ${currentBranch === branch ? 'text-indigo-400' : 'text-slate-600 group-hover:text-indigo-400 transition-colors'}`} />
                                                     <span className="truncate">{branch}</span>

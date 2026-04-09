@@ -5,7 +5,7 @@ import { electronAPI } from '@electron-toolkit/preload'
 const api = {
   selectWorkbench: () => ipcRenderer.invoke('select-workbench'),
   getConfig: () => ipcRenderer.invoke('get-config'),
-  getServices: (path: string) => ipcRenderer.invoke('get-services', path),
+  getServices: (path: string, forceRefresh?: boolean) => ipcRenderer.invoke('get-services', path, forceRefresh),
   controlService: (data: any) => ipcRenderer.invoke('control-service', data),
   getLogs: (data: any) => ipcRenderer.invoke('get-logs', data),
   getGroups: (data: any) => ipcRenderer.invoke('get-groups', data),

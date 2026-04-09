@@ -12,7 +12,7 @@ import { GitPluginsModal } from "./components/GitPluginsModal";
 import { ArchivedServicesModal } from "./components/ArchivedServicesModal";
 import { HelpModal } from "./components/HelpModal";
 import { EnvSettingsModal } from "./components/EnvSettingsModal";
-import { Loader2, RefreshCw, FolderOpen, Plus, Code, LayoutGrid, List, Search, HelpCircle, X, Shield, Copy, Link, ChevronDown, Github } from "lucide-react";
+import { Loader2, RefreshCw, FolderOpen, Plus, Code, LayoutGrid, List, Search, HelpCircle, X, Shield, Copy, Link, ChevronDown, Github, Terminal } from "lucide-react";
 import logo from "../../../build/icon.png";
 import { useRef } from "react";
 
@@ -60,6 +60,7 @@ function App() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [defaultIde, setDefaultIde] = useState<string>("vscode");
   const [availableIdes, setAvailableIdes] = useState<{ id: string, name: string }[]>([]);
+  const [error, setError] = useState<string | null>(null);
 
   // UI State
   const [isLogModalOpen, setIsLogModalOpen] = useState(false);
@@ -112,30 +113,41 @@ function App() {
   }, []);
 
   useEffect(() => {
-    let interval: any;
     if (activeWorkbenchId && workbenchPath) {
-      fetchData();
-      interval = setInterval(fetchData, 3000);
+      fetchData(true); // Deep scan on workbench change
+
+      // Refresh data when window returns to focus
+      const onFocus = () => {
+        // "Light" refresh: uses cache for git status, but deep checks process status
+        fetchData(false);
+      };
+
+      window.addEventListener('focus', onFocus);
+      return () => window.removeEventListener('focus', onFocus);
     }
-    return () => {
-      if (interval) clearInterval(interval);
-    };
+    return;
   }, [activeWorkbenchId, workbenchPath]);
 
   const loadConfig = async () => {
-    const config = await window.api.getConfig();
-    if (config.workbenches && config.workbenches.length > 0) {
-      setWorkbenches(config.workbenches);
-      setActiveWorkbenchId(config.activeWorkbenchId);
-    } else if (config.workbenchPath) {
-      const legacyId = "legacy";
-      setWorkbenches([{ id: legacyId, name: "Legacy", path: config.workbenchPath }]);
-      setActiveWorkbenchId(legacyId);
+    try {
+      const config = await window.api.getConfig();
+      if (config.workbenches && config.workbenches.length > 0) {
+        setWorkbenches(config.workbenches);
+        setActiveWorkbenchId(config.activeWorkbenchId);
+      } else if (config.workbenchPath) {
+        const legacyId = "legacy";
+        setWorkbenches([{ id: legacyId, name: "Legacy", path: config.workbenchPath }]);
+        setActiveWorkbenchId(legacyId);
+      }
+      if (config.defaultIde) {
+        setDefaultIde(config.defaultIde);
+      }
+    } catch (err: any) {
+      console.error("Failed to load config:", err);
+      setError(err.message || "Failed to load application configuration");
+    } finally {
+      setIsLoading(false);
     }
-    if (config.defaultIde) {
-      setDefaultIde(config.defaultIde);
-    }
-    setIsLoading(false);
   };
 
   const fetchAvailableIdes = async () => {
@@ -191,7 +203,7 @@ function App() {
     await window.api.updateConfig({ workbenches: newWorkbenches });
   };
 
-  const fetchData = async () => {
+    const fetchData = async (forceRefresh = false) => {
     if (!workbenchPath) return;
     try {
       window.api.getGroups({ workbenchId: activeWorkbenchId }).then(groupsData => {
@@ -205,10 +217,12 @@ function App() {
         }).catch(console.error);
       }
 
-      const servicesData = await window.api.getServices(workbenchPath);
+      const servicesData = await window.api.getServices(workbenchPath, forceRefresh);
       setServices(servicesData.services || []);
-    } catch (error) {
-      console.error("Failed to fetch data:", error);
+      setError(null); // Clear any previous errors on success
+    } catch (err: any) {
+      console.error("Failed to fetch data:", err);
+      setError(err.message || "An unexpected error occurred while fetching service data");
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
@@ -371,7 +385,7 @@ function App() {
 
   const handleRefresh = () => {
     setIsRefreshing(true);
-    fetchData();
+    fetchData(true); // Manual refresh triggers deep scan
   };
 
   const handleSaveGroup = async (group: Group, action: 'create' | 'delete', id?: string) => {
@@ -451,21 +465,47 @@ function App() {
 
   if (isLoading && !workbenchPath) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-gray-50 dark:bg-neutral-900">
-        <Loader2 className="h-8 w-8 animate-spin text-indigo-500" />
+      <div className="flex min-h-screen items-center justify-center bg-slate-950">
+        <div className="flex flex-col items-center gap-6 animate-in fade-in zoom-in duration-500">
+          <div className="h-16 w-16 rounded-2xl bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center shadow-[0_0_20px_rgba(34,211,238,0.15)]">
+            <Loader2 className="h-8 w-8 animate-spin text-cyan-400" />
+          </div>
+          <p className="text-slate-400 font-bold tracking-widest uppercase text-xs animate-pulse">Initializing Vantage...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center bg-slate-950 text-center p-6">
+        <div className="h-20 w-20 rounded-3xl bg-red-500/10 border border-red-500/30 flex items-center justify-center mb-6 shadow-[0_0_30px_rgba(239,68,68,0.1)]">
+          <Terminal className="h-10 w-10 text-red-400" />
+        </div>
+        <h1 className="text-3xl font-black text-white mb-2 tracking-tight">System <span className="text-red-500">Error</span></h1>
+        <p className="text-slate-400 max-w-md mx-auto mb-8 font-medium">Vantage encountered a critical issue while initializing the workspace. Check your logs for more details.</p>
+        <div className="bg-slate-900/50 p-4 rounded-xl border border-slate-800/60 max-w-lg w-full mb-8 text-left font-mono">
+          <p className="text-red-400 text-sm whitespace-pre-wrap">{error}</p>
+        </div>
+        <button
+          onClick={() => window.location.reload()}
+          className="px-8 py-3.5 bg-slate-800 hover:bg-slate-700 text-white rounded-xl font-bold transition-all shadow-xl hover:shadow-slate-900/40 border border-slate-700"
+        >
+          Attempt Re-initialization
+        </button>
       </div>
     );
   }
 
   if (!workbenchPath) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center bg-gray-50 dark:bg-neutral-900 text-center p-6">
-        <div className="w-full max-w-md bg-white dark:bg-neutral-800 rounded-2xl shadow-xl p-10 border border-gray-100 dark:border-neutral-700">
+      <div className="flex min-h-screen flex-col items-center justify-center bg-slate-950 text-center p-6">
+        <div className="w-full max-w-md bg-slate-900 rounded-2xl shadow-xl p-10 border border-slate-800">
           <FolderOpen className="h-16 w-16 text-indigo-500 mx-auto mb-6" />
           <h1 className="text-3xl font-bold bg-gradient-to-r from-indigo-500 to-purple-500 bg-clip-text text-transparent mb-4">
             Welcome to Dashboard
           </h1>
-          <p className="text-gray-500 dark:text-gray-400 mb-8 leading-relaxed">
+          <p className="text-slate-400 mb-8 leading-relaxed">
             To get started, please select your workbench directory containing your service projects.
           </p>
           <button
