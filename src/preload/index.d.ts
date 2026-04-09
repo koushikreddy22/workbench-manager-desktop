@@ -6,7 +6,7 @@ declare global {
     api: {
       selectWorkbench: () => Promise<any>
       getConfig: () => Promise<any>
-      getServices: (path: string) => Promise<any>
+      getServices: (path: string, forceRefresh?: boolean) => Promise<any>
       controlService: (data: any) => Promise<any>
       getLogs: (data: any) => Promise<any>
       getGroups: (data?: any) => Promise<any>
