@@ -17,6 +17,8 @@ win:
   executableName: Vantage
   icon: build/icon.ico
   target: portable
+  publisherName: "Koushik Reddy"
+  legalTrademarks: "Copyright © 2026 Koushik Reddy. All rights reserved."
 
 linux:
   target:

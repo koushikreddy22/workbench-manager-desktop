@@ -277,6 +277,36 @@ h1, h2, h3 {
     opacity: 0.7;
 }
 
+.download-info {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+}
+
+.security-hint {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.6rem 1rem;
+    border-radius: 0.75rem;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    max-width: 450px;
+    border-color: rgba(239, 68, 68, 0.2);
+}
+
+.security-hint i {
+    width: 16px;
+    height: 16px;
+    color: #f87171;
+    flex-shrink: 0;
+}
+
+.security-hint b {
+    color: var(--text-main);
+}
+
 /* Mockup Showcase */
 .showcase {
     width: 100%;

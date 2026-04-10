@@ -3,8 +3,11 @@
   "version": "1.0.1",
   "description": "A premium dashboard for service management and monitoring",
   "main": "./out/main/index.js",
-  "author": "koushikreddy22",
-  "homepage": "https://github.com/koushikreddy22/vantage",
+  "author": {
+    "name": "Koushik Reddy",
+    "url": "https://github.com/koushikreddy22"
+  },
+  "homepage": "https://github.com/koushikreddy22/workbench-manager-desktop",
   "scripts": {
     "format": "prettier --write .",
     "lint": "eslint --cache .",
