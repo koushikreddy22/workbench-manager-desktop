@@ -43,7 +43,7 @@
     "@vitejs/plugin-react": "^5.1.1",
     "autoprefixer": "^10.4.24",
     "electron": "^39.2.6",
-    "electron-builder": "^26.0.12",
+    "electron-builder": "^26.8.1",
     "electron-vite": "^5.0.0",
     "eslint": "^9.39.1",
     "eslint-plugin-react": "^7.37.5",
@@ -67,9 +67,7 @@
       "out/**/*"
     ],
     "win": {
-      "target": [
-        "nsis"
-      ],
+      "target":"portable",
       "icon": "./build/icon.ico"
     },
     "linux": {
@@ -78,12 +76,6 @@
         "deb"
       ],
       "category": "Development"
-    },
-    "nsis": {
-      "oneClick": false,
-      "allowToChangeInstallationDirectory": true,
-      "createDesktopShortcut": true,
-      "shortcutName": "Vantage"
     }
   }
 }

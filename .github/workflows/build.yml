@@ -1,36 +1,27 @@
-name: Build and Release
+name: Build EXE
 
 on:
   push:
-    tags:
-      - 'v*'
+    branches: [ main ]
 
 jobs:
   build:
-    runs-on: ${{ matrix.os }}
-
-    strategy:
-      matrix:
-        os: [windows-latest, ubuntu-latest]
+    runs-on: windows-latest
 
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Setup Node.js
+      - name: Install Node
         uses: actions/setup-node@v4
         with:
           node-version: 18
-          cache: 'npm'
 
-      - name: Install Dependencies
-        run: npm ci
+      - run: npm install
+      - run: npm run build
+      - run: npx electron-builder --win portable
 
-      - name: Build and Release
-        uses: samuelmeuli/action-electron-builder@v1
+      - name: Upload EXE
+        uses: actions/upload-artifact@v4
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          release: true
-        env:
-          # This helps bypass some symlink-related errors in the CI environment as well
-          ELECTRON_BUILDER_ALLOW_HANDLE_SYMBOLIC_LINK_AS_FILE: true
+          name: exe
+          path: dist/*.exe
