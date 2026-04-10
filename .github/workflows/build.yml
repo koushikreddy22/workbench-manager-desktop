@@ -1,4 +1,4 @@
-name: Build EXE
+name: Build Vantage
 
 on:
   push:
@@ -7,7 +7,12 @@ on:
 
 jobs:
   build:
-    runs-on: windows-latest
+    strategy:
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+
+    runs-on: ${{ matrix.os }}
+    
     permissions:
       contents: write
 
@@ -19,22 +24,38 @@ jobs:
         with:
           node-version: 20
 
-      - run: npm install
-      - run: npm run build
-      - run: npx electron-builder --win portable
+      - name: Install Dependencies
+        run: npm install
 
-      - name: Upload EXE
+      - name: Build App
+        run: npm run build
+
+      - name: Package for Windows
+        if: matrix.os == 'windows-latest'
+        run: npx electron-builder --win portable
+
+      - name: Package for Linux
+        if: matrix.os == 'ubuntu-latest'
+        run: npx electron-builder --linux
+
+      - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: Vantage
-          path: dist/*.exe
+          name: Vantage-${{ matrix.os }}
+          path: |
+            dist/*.exe
+            dist/*.AppImage
+            dist/*.deb
 
       - name: Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: latest
-          name: Latest Build
-          files: dist/*.exe
+          name: Latest Distribution
+          files: |
+            dist/*.exe
+            dist/*.AppImage
+            dist/*.deb
           generate_release_notes: true
           make_latest: true
         env:

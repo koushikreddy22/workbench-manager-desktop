@@ -18,30 +18,48 @@ async function fetchLatestRelease() {
             day: 'numeric' 
         });
 
-        // Find Windows executable in assets
-        const windowsAsset = data.assets.find(asset => 
-            asset.name.toLowerCase().endsWith('.exe')
-        );
+        // Find assets
+        const winAsset = data.assets.find(a => a.name.toLowerCase().endsWith('.exe'));
+        const linuxAsset = data.assets.find(a => a.name.toLowerCase().endsWith('.appimage'));
 
-        if (windowsAsset) {
-            const downloadUrl = windowsAsset.browser_download_url;
-            
-            // Update buttons
-            const mainBtn = document.getElementById('main-download-btn');
-            const navBtn = document.getElementById('nav-download-btn');
-            const downloadText = document.getElementById('download-text');
-            const versionText = document.getElementById('version-text');
-
-            if (mainBtn) mainBtn.href = downloadUrl;
-            if (navBtn) navBtn.href = downloadUrl;
-            if (downloadText) downloadText.textContent = `Download Vantage ${version}`;
-            if (versionText) versionText.textContent = `Latest Stable: ${version} (${publishDate})`;
-            
-            console.log(`Updated to latest version: ${version}`);
+        // Update Windows Button
+        if (winAsset) {
+            const btn = document.getElementById('main-download-btn');
+            const text = document.getElementById('download-text');
+            if (btn) btn.href = winAsset.browser_download_url;
+            if (text) text.textContent = `Download Vantage ${version} for Windows`;
         }
+
+        // Update Linux Button
+        if (linuxAsset) {
+            const btn = document.getElementById('linux-download-btn');
+            const text = document.getElementById('linux-download-text');
+            if (btn) btn.href = linuxAsset.browser_download_url;
+            if (text) text.textContent = `Download Vantage ${version} for Linux (.AppImage)`;
+        }
+
+        // Update Version Badge
+        const versionText = document.getElementById('version-text');
+        if (versionText) versionText.textContent = `Latest Stable: ${version} (${publishDate})`;
+        
+        // OS Detection & Highlighting
+        autoDetectOS();
+
     } catch (error) {
         console.error("Error fetching latest release:", error);
-        // Fallback behavior: keep the static links defined in HTML
+    }
+}
+
+function autoDetectOS() {
+    const platform = window.navigator.platform.toLowerCase();
+    const winBtn = document.getElementById('main-download-btn');
+    const linuxBtn = document.getElementById('linux-download-btn');
+
+    if (platform.includes('win')) {
+        if (winBtn) winBtn.classList.add('highlight');
+    } else if (platform.includes('linux')) {
+        if (linuxBtn) linuxBtn.classList.add('highlight', 'btn-primary');
+        if (linuxBtn) linuxBtn.classList.remove('btn-glass');
     }
 }
 

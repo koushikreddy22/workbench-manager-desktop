@@ -267,8 +267,27 @@ h1, h2, h3 {
 
 .cta-group {
     display: flex;
-    gap: 1rem;
-    margin-bottom: 1rem;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.btn-link {
+    color: var(--text-muted);
+    text-decoration: none;
+    font-size: 0.9rem;
+    padding-top: 1rem;
+    transition: color 0.2s;
+}
+
+.btn-link:hover {
+    color: var(--text-main);
+}
+
+.highlight {
+    box-shadow: 0 0 30px var(--primary-glow);
+    transform: scale(1.05);
 }
 
 .windows-only {
