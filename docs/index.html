@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vantage | Premium Service Dashboard</title>
+    <meta name="description" content="Manage multiple microservices, repositories, and environments in a centralized, highly-visual workspace.">
+    
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@300;400;600;800;900&display=swap" rel="stylesheet">
+    
+    <!-- Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <!-- Background Elements -->
+    <div class="bg-gradient bg-blob-1"></div>
+    <div class="bg-gradient bg-blob-2"></div>
+    <div class="mesh-overlay"></div>
+
+    <nav class="navbar">
+        <div class="nav-container glass">
+            <div class="logo">
+                <i data-lucide="layout-dashboard" class="logo-icon"></i>
+                <span>Vantage</span>
+            </div>
+            <div class="nav-links">
+                <a href="#features">Features</a>
+                <a href="#download" class="btn btn-secondary" id="nav-download-btn">Download</a>
+                <a href="https://github.com/koushikreddy22/workbench-manager-desktop" target="_blank" class="github-link">
+                    <i data-lucide="github"></i>
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <main>
+        <section class="hero" id="home">
+            <div class="badge glass fade-in-up" id="version-badge">
+                <span class="badge-dot"></span>
+                <span id="version-text">Now available as a Single Portable EXE</span>
+            </div>
+            <h1 class="fade-in-up delay-1">
+                Command your architecture with<br>
+                <span class="text-gradient">Vantage</span>
+            </h1>
+            <p class="subtitle fade-in-up delay-2">
+                A premium dashboard to manage multiple microservices, repositories, and environments in a centralized, highly-visual desktop workspace.
+            </p>
+            
+            <div class="cta-group fade-in-up delay-3">
+                <a href="https://github.com/koushikreddy22/workbench-manager-desktop/actions/runs/24227492581/artifacts/6364683220" class="btn btn-primary btn-glow" id="main-download-btn">
+                    <i data-lucide="download"></i>
+                    <span id="download-text">Download for Windows</span>
+                </a>
+                <a href="https://github.com/koushikreddy22/workbench-manager-desktop" target="_blank" class="btn btn-glass">
+                    View Documentation
+                </a>
+            </div>
+            <p class="windows-only fade-in-up delay-4">*Includes 64-bit Installer & Portable version</p>
+        </section>
+
+        <!-- Dynamic Mockup Showcase -->
+        <section class="showcase fade-in-up delay-4">
+            <div class="app-window glass-heavy">
+                <div class="window-header">
+                    <div class="window-controls">
+                        <span></span><span></span><span></span>
+                    </div>
+                    <div class="window-title">Vantage Dashboard</div>
+                </div>
+                <!-- Abstract Representation of your UI -->
+                <div class="window-body">
+                    <div class="sidebar glass">
+                        <div class="sidebar-item active"></div>
+                        <div class="sidebar-item"></div>
+                        <div class="sidebar-item"></div>
+                    </div>
+                    <div class="content">
+                        <div class="header-mock glass"></div>
+                        <div class="cards-grid">
+                            <div class="card-mock glass glow-card"></div>
+                            <div class="card-mock glass"></div>
+                            <div class="card-mock glass"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="features" id="features">
+            <div class="section-title">
+                <h2>Powerful Tools for Modern Workflows</h2>
+                <p>Everything you need to orchestrate complex service ecosystems.</p>
+            </div>
+            
+            <div class="feature-grid">
+                <div class="feature-card glass">
+                    <div class="feature-icon icon-cyan">
+                        <i data-lucide="blocks"></i>
+                    </div>
+                    <h3>Project Clusters</h3>
+                    <p>Group related microservices into logical clusters and orchestrate them intelligently with a single click.</p>
+                </div>
+                
+                <div class="feature-card glass">
+                    <div class="feature-icon icon-purple">
+                        <i data-lucide="terminal-square"></i>
+                    </div>
+                    <h3>Environment Vaults</h3>
+                    <p>Instantly switch between dev, staging, and production `.env` profiles natively without manual file editing.</p>
+                </div>
+                
+                <div class="feature-card glass">
+                    <div class="feature-icon icon-blue">
+                        <i data-lucide="git-merge"></i>
+                    </div>
+                    <h3>Deep Git Integration</h3>
+                    <p>Track status across infinite repositories, switch branches concurrently, and handle multiple Git personas safely.</p>
+                </div>
+                
+                <div class="feature-card glass">
+                    <div class="feature-icon icon-orange">
+                        <i data-lucide="package"></i>
+                    </div>
+                    <h3>Zero Configuration</h3>
+                    <p>Delivered as a single, portable executable. No complicated installation requirements—just download and execute.</p>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <footer class="glass">
+        <div class="footer-content">
+            <div class="footer-logo">
+                <i data-lucide="layout-dashboard" class="logo-icon"></i>
+                <span>Vantage</span>
+            </div>
+            <p>Built with ❤️ for modern engineering teams.</p>
+            <p class="copyright">© 2026 Vantage. MIT License.</p>
+        </div>
+    </footer>
+
+    <script src="script.js"></script>
+</body>
+</html>
