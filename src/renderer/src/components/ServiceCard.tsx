@@ -1,7 +1,9 @@
 import { useState, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
-import { Play, Square, FileText, GitBranch, MoreVertical, Download, Settings, RefreshCw, Wrench, Rocket, Code, ArrowUp, ArrowDown, FolderOpen, Copy, Check, Database, Plus, Edit2, Archive } from "lucide-react";
+import { Play, Square, FileText, GitBranch, MoreVertical, Download, Settings, RefreshCw, Wrench, Rocket, Code, ArrowUp, ArrowDown, FolderOpen, Copy, Check, Database, Plus, Edit2, Archive, Sparkles, X } from "lucide-react";
 import { cn } from "../lib/utils";
+import { AiOrchestrator } from "../lib/ai-orchestrator";
+import { AiSettings } from "./AiSettingsModal";
 
 interface GitStatus {
     hasLocalChanges: boolean;
@@ -32,14 +34,25 @@ interface ServiceProps {
     activeEnv?: { name: string; color: string } | null;
     envProfiles?: { id: string; name: string; color: string }[];
     activeEnvId?: string | null;
+    isSelected?: boolean;
+    onSelect?: (path: string) => void;
+    stats?: { cpu: number; memory: number };
+    aiSettings: AiSettings;
 }
 
-export function ServiceCard({ name, path, status, mode, port, gitBranch, gitStatus, envProfiles, activeEnvId, customButtons, onToggle, onCommand, onOpenIde, isIdeLoading, isEnvSwitching }: ServiceProps) {
+export function ServiceCard({ name, path, status, mode, port, gitBranch, gitStatus, envProfiles, activeEnvId, customButtons, onToggle, onCommand, onOpenIde, isIdeLoading, isEnvSwitching, isSelected, onSelect, stats, aiSettings }: ServiceProps) {
     const [actionLoading, setActionLoading] = useState<string | null>(null);
     const [menuOpen, setMenuOpen] = useState(false);
     const [menuPosition, setMenuPosition] = useState<{ top: number, left: number | 'auto', right: number | 'auto' }>({ top: 0, left: 0, right: 'auto' });
     const menuRef = useRef<HTMLDivElement>(null);
     const [copied, setCopied] = useState(false);
+
+    const [isLiaisonOpen, setIsLiaisonOpen] = useState(false);
+    const [liaisonSummary, setLiaisonSummary] = useState<string | null>(null);
+    const [suggestedCommit, setSuggestedCommit] = useState<string | null>(null);
+    const [isLiaisonLoading, setIsLiaisonLoading] = useState(false);
+
+    const isAnomaly = stats && (stats.cpu > 80 || stats.memory > 800);
 
     const handleCopyPath = () => {
         navigator.clipboard.writeText(path);
@@ -72,11 +85,33 @@ export function ServiceCard({ name, path, status, mode, port, gitBranch, gitStat
 
     const handleAction = async (action: string, payload?: any) => {
         setMenuOpen(false);
-        setActionLoading(action);
+        if (action === 'git-liaison') {
+            handleGitLiaison();
+        } else {
+            setActionLoading(action);
+            try {
+                await onCommand(path, action, payload);
+            } finally {
+                setActionLoading(null);
+            }
+        }
+    };
+
+    const handleGitLiaison = async () => {
+        setIsLiaisonOpen(true);
+        setIsLiaisonLoading(true);
+        setLiaisonSummary(null);
+        setSuggestedCommit(null);
         try {
-            await onCommand(path, action, payload);
+            const { diff } = await window.api.gitCommand({ action: 'get-diff', path });
+            const summary = await AiOrchestrator.summarizeDiff(diff, aiSettings);
+            const msg = await AiOrchestrator.suggestCommitMessage(diff, aiSettings);
+            setLiaisonSummary(summary);
+            setSuggestedCommit(msg);
+        } catch (e) {
+            console.error(e);
         } finally {
-            setActionLoading(null);
+            setIsLiaisonLoading(false);
         }
     };
 
@@ -96,18 +131,32 @@ export function ServiceCard({ name, path, status, mode, port, gitBranch, gitStat
                 ? mode === "prod"
                     ? "bg-amber-950/20 border-amber-500/30 hover:border-amber-500/60 hover:shadow-amber-500/10 hover:bg-amber-950/30"
                     : "bg-cyan-950/20 border-cyan-500/30 hover:border-cyan-500/60 hover:shadow-cyan-500/10 hover:bg-cyan-950/30"
-                : "bg-slate-900/40 border-slate-800/50 hover:border-slate-700/60 hover:bg-slate-900/60"
+                : "bg-slate-900/40 border-slate-800/50 hover:border-slate-700/60 hover:bg-slate-900/60",
+            isSelected && "ring-2 ring-cyan-500 ring-offset-2 ring-offset-[#0B0F19] border-cyan-500/50 bg-cyan-900/10",
+            isAnomaly && "border-red-500/50 bg-red-950/10 animate-pulse shadow-[0_0_20px_rgba(239,68,68,0.2)]"
         )}>
             <div className="flex flex-col gap-4 w-full">
                 {/* Header Row: Full Width Name/Status + Menu */}
                 <div className="flex items-start justify-between gap-4 w-full">
-                    <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-3">
-                            <div className={cn("h-3 w-3 shrink-0 rounded-full shadow-[0_0_8px_rgba(0,0,0,0.5)]", statusColor)} />
-                            <h3 className="text-lg font-bold text-white group-hover:text-cyan-400 transition-colors break-words leading-tight" title={name}>
-                                {name}
-                            </h3>
-                        </div>
+                    <div className="flex items-center gap-3 flex-1 min-w-0">
+                        <button
+                            onClick={() => onSelect?.(path)}
+                            className={cn(
+                                "h-5 w-5 rounded border transition-all flex items-center justify-center shrink-0",
+                                isSelected
+                                    ? "bg-cyan-500 border-cyan-400 text-slate-950"
+                                    : "bg-slate-800 border-slate-700 text-transparent hover:border-cyan-500/50"
+                            )}
+                        >
+                            <Check className={cn("h-3.5 w-3.5 stroke-[3px]", !isSelected && "opacity-0")} />
+                        </button>
+                        <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-3">
+                                <div className={cn("h-3 w-3 shrink-0 rounded-full shadow-[0_0_8px_rgba(0,0,0,0.5)]", statusColor)} />
+                                <h3 className="text-lg font-bold text-white group-hover:text-cyan-400 transition-colors break-words leading-tight" title={name}>
+                                    {name}
+                                </h3>
+                            </div>
                         <div className="flex items-center gap-1 mt-1">
                             {isEnvSwitching ? (
                                 <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-slate-800/80 border border-slate-700/80">
@@ -159,6 +208,7 @@ export function ServiceCard({ name, path, status, mode, port, gitBranch, gitStat
                             )}
                         </div>
                     </div>
+                </div>
 
                     <div className="flex items-center gap-1.5 shrink-0" ref={menuRef}>
                         <button
@@ -227,6 +277,18 @@ export function ServiceCard({ name, path, status, mode, port, gitBranch, gitStat
                                 >
                                     <Play className="h-4 w-4 text-slate-500" /> Production Start
                                 </button>
+
+                                {gitStatus?.hasLocalChanges && (
+                                     <>
+                                        <div className="border-t border-slate-800/80 my-1"></div>
+                                        <button
+                                            onClick={() => handleAction('git-liaison')}
+                                            className="flex w-full items-center gap-2.5 px-4 py-2.5 text-sm text-purple-400 hover:bg-purple-900/20 hover:text-purple-300 transition-all font-bold"
+                                        >
+                                            <Sparkles className="h-4 w-4 text-purple-500" /> AI Git Liaison
+                                        </button>
+                                     </>
+                                )}
                             </div>,
                             document.body
                         )}
@@ -394,6 +456,63 @@ export function ServiceCard({ name, path, status, mode, port, gitBranch, gitStat
                 </div>
             </div>
 
+
+            {isLiaisonOpen && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-in fade-in duration-300">
+                    <div className="w-full max-w-lg bg-slate-900 border border-purple-500/30 rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+                        <div className="p-4 border-b border-slate-800 flex items-center justify-between bg-purple-950/20">
+                            <div className="flex items-center gap-3">
+                                <Sparkles className="h-5 w-5 text-purple-400" />
+                                <span className="text-sm font-black text-white italic tracking-tight">AI Git Liaison</span>
+                            </div>
+                            <button onClick={() => setIsLiaisonOpen(false)} className="text-slate-500 hover:text-white transition-colors cursor-pointer">
+                                <X className="h-5 w-5" />
+                            </button>
+                        </div>
+                        <div className="p-6">
+                            {isLiaisonLoading ? (
+                                <div className="flex flex-col items-center justify-center py-10 gap-4">
+                                    <RefreshCw className="h-8 w-8 text-purple-500 animate-spin" />
+                                    <p className="text-xs text-slate-500 font-mono italic animate-pulse tracking-widest text-center uppercase">Analyzing Codebase Flux...</p>
+                                </div>
+                            ) : (
+                                <div className="space-y-6">
+                                    <div className="space-y-2">
+                                        <h4 className="text-[10px] font-black text-purple-500/60 uppercase tracking-widest">Architectural Summary</h4>
+                                        <div className="bg-slate-950/50 rounded-xl p-4 border border-slate-800 text-sm text-slate-300 leading-relaxed font-bold italic">
+                                            {liaisonSummary}
+                                        </div>
+                                    </div>
+                                    <div className="space-y-2">
+                                        <h4 className="text-[10px] font-black text-purple-500/60 uppercase tracking-widest">Suggested Commit Logic</h4>
+                                        <div className="group relative">
+                                            <code className="block bg-slate-950/80 rounded-xl p-4 border border-purple-500/20 text-sm text-purple-300 font-mono">
+                                                {suggestedCommit}
+                                            </code>
+                                            <button 
+                                                onClick={() => {
+                                                    navigator.clipboard.writeText(suggestedCommit || '');
+                                                    setCopied(true);
+                                                    setTimeout(() => setCopied(false), 2000);
+                                                }}
+                                                className="absolute right-3 top-1/2 -translate-y-1/2 p-2 rounded-lg bg-purple-500/10 text-purple-400 opacity-0 group-hover:opacity-100 transition-all hover:bg-purple-500 hover:text-slate-950 cursor-pointer"
+                                            >
+                                                {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <button 
+                                        onClick={() => setIsLiaisonOpen(false)}
+                                        className="w-full py-3 rounded-xl bg-purple-600 text-white text-xs font-black uppercase tracking-widest hover:bg-purple-500 transition-all shadow-lg shadow-purple-900/20 cursor-pointer"
+                                    >
+                                        Sync Context
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

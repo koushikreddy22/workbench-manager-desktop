@@ -31,7 +31,9 @@
     "@xterm/xterm": "^5.5.0",
     "clsx": "^2.1.1",
     "dotenv": "^17.3.1",
+    "framer-motion": "^12.38.0",
     "lucide-react": "^0.575.0",
+    "pidusage": "^4.0.1",
     "tailwind-merge": "^3.5.0",
     "uuid": "^13.0.0"
   },
@@ -70,7 +72,7 @@
       "out/**/*"
     ],
     "win": {
-      "target":"portable",
+      "target": "portable",
       "icon": "./build/icon.ico"
     },
     "linux": {

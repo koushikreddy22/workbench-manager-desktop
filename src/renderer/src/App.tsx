@@ -12,7 +12,14 @@ import { GitPluginsModal } from "./components/GitPluginsModal";
 import { ArchivedServicesModal } from "./components/ArchivedServicesModal";
 import { HelpModal } from "./components/HelpModal";
 import { EnvSettingsModal } from "./components/EnvSettingsModal";
-import { Loader2, RefreshCw, FolderOpen, Plus, Code, LayoutGrid, List, Search, HelpCircle, X, Shield, Copy, Link, ChevronDown, Github, Terminal } from "lucide-react";
+import { CommandBar } from "./components/CommandBar";
+import { parsePrompt } from "./lib/ai-engine";
+import { NetworkMap } from "./components/NetworkMap";
+import { AiSettingsModal, AiSettings } from './components/AiSettingsModal';
+import { AiChatbot } from "./components/AiChatbot";
+import { AiOrchestrator, ChatMessage } from "./lib/ai-orchestrator";
+import { Sparkles, X, Loader2, RefreshCw, FolderOpen, Plus, Code, LayoutGrid, List, Search, HelpCircle, Shield, Copy, Link, ChevronDown, Github, Terminal, Check } from "lucide-react";
+import { cn } from "./lib/utils";
 import logo from "../../../build/icon.png";
 import { useRef } from "react";
 
@@ -31,6 +38,8 @@ interface Service {
   activeEnv?: { name: string; color: string } | null;
   envProfiles?: { id: string; name: string; color: string }[];
   activeEnvId?: string | null;
+  dependencies?: string[];
+  stats?: { cpu: number; memory: number };
 }
 
 interface Group {
@@ -88,6 +97,15 @@ function App() {
 
   // Service Settings State
   const [serviceConfigs, setServiceConfigs] = useState<Record<string, any>>({});
+  const [aiSettings, setAiSettings] = useState<AiSettings>({
+    mode: 'native',
+    ollamaUrl: 'http://localhost:11434',
+    ollamaModel: 'llama3',
+    cloudProvider: 'openai',
+    cloudModel: 'gpt-4o-mini',
+    apiKey: ''
+  });
+  const [isAiSettingsModalOpen, setIsAiSettingsModalOpen] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [settingsModalService, setSettingsModalService] = useState<{ name: string, path: string } | null>(null);
   const [isGitProfilesModalOpen, setIsGitProfilesModalOpen] = useState(false);
@@ -95,7 +113,35 @@ function App() {
   const [isGitPluginsModalOpen, setIsGitPluginsModalOpen] = useState(false);
   const [isGitMenuOpen, setIsGitMenuOpen] = useState(false);
   const [isArchivedModalOpen, setIsArchivedModalOpen] = useState(false);
+  const [selectedServicePaths, setSelectedServicePaths] = useState<Set<string>>(new Set());
+
+  const [searchResults, setSearchResults] = useState<{ path: string; excerpt: string; name: string }[] | null>(null);
+  const [healthReport, setHealthReport] = useState<string | null>(null);
+  const [isNetworkMapOpen, setIsNetworkMapOpen] = useState(false);
+  const [isAiProcessing, setIsAiProcessing] = useState(false);
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [isBotProcessing, setIsBotProcessing] = useState(false);
   const gitMenuRef = useRef<HTMLDivElement>(null);
+
+  const handleToggleSelect = (path: string) => {
+    setSelectedServicePaths(prev => {
+      const next = new Set(prev);
+      if (next.has(path)) {
+        next.delete(path);
+      } else {
+        next.add(path);
+      }
+      return next;
+    });
+  };
+
+  const handleSelectAll = (select: boolean) => {
+    if (select) {
+      setSelectedServicePaths(new Set(services.map(s => s.path)));
+    } else {
+      setSelectedServicePaths(new Set());
+    }
+  };
 
   useEffect(() => {
     loadConfig();
@@ -141,6 +187,12 @@ function App() {
       }
       if (config.defaultIde) {
         setDefaultIde(config.defaultIde);
+      }
+      if (config.aiSettings) {
+        setAiSettings(config.aiSettings);
+      }
+      if (config.chatMessages) {
+        setChatMessages(config.chatMessages);
       }
     } catch (err: any) {
       console.error("Failed to load config:", err);
@@ -251,6 +303,8 @@ function App() {
     }
 
     await window.api.controlService({ path, action, port: svc.port, mode, customCommand });
+    
+    // Clear selection if stopped? Maybe not, better keep it.
     fetchData();
   };
 
@@ -406,6 +460,162 @@ function App() {
     await window.api.saveGroups({ workbenchId: activeWorkbenchId, group, action, id });
     // Groups are already updated optimistically and fetchData will run async
     fetchData();
+  };
+
+  const executeAiCommand = async (prompt: string) => {
+    setIsAiProcessing(true);
+    try {
+      const action = parsePrompt(prompt);
+      if (action.intent === 'unknown') {
+        alert("I'm not sure what you want me to do. Try 'start checked' or 'stop all'.");
+        return;
+      }
+
+      if (action.intent === 'search' && action.query) {
+         const { results } = await (window as any).electron.ipcRenderer.invoke('search-docs', { 
+            workbenchPath: workbenches.find(w => w.id === activeWorkbenchId)?.path, 
+            query: action.query 
+         });
+         setSearchResults(results);
+         return;
+      }
+
+      if (action.intent === 'health') {
+          const report = services.map(s => {
+              if (!s.stats) return null;
+              const status = s.stats.cpu > 80 ? "⚠️ High CPU" : s.stats.memory > 500 ? "⚠️ High Memory" : "✅ Healthy";
+              return `${s.name}: ${status} (${s.stats.cpu}% CPU, ${s.stats.memory}MB)`;
+          }).filter(Boolean).join('\n');
+          setHealthReport(report || "No services are currently reporting health data.");
+          return;
+      }
+
+      if (action.intent === 'network-map') {
+          setIsNetworkMapOpen(true);
+          return;
+      }
+
+      const targetServices = services.filter(s => {
+        if (action.scope === 'all') return true;
+        if (action.scope === 'checked') return selectedServicePaths.has(s.path);
+        if (action.scope === 'specific' && action.targetNames) {
+            return action.targetNames.includes(s.name);
+        }
+        return false;
+      });
+
+      if (targetServices.length === 0) {
+        alert("No services matched your request.");
+        return;
+      }
+
+      await Promise.all(targetServices.map(async (service) => {
+        // Handle Git Pull (Workflow)
+        if (action.intent === 'git-pull' || action.intent === 'workflow') {
+            await window.api.gitCommand({ action: 'pull', path: service.path });
+        }
+
+        // Handle Environment switch if specified
+        if (action.environment && service.envProfiles) {
+          const profile = service.envProfiles.find(p => p.name.toUpperCase() === action.environment);
+          if (profile) {
+            await window.api.switchEnv({ path: service.path, profileId: profile.id });
+          }
+        }
+
+        // Handle Start/Stop/Restart/Build/Install
+        const config = serviceConfigs[service.path] || {};
+        const mode = (action.environment?.toLowerCase() === 'prod' ? 'prod' : 'dev');
+        
+        if (action.intent === 'start' || action.intent === 'restart') {
+           if (action.intent === 'restart') await window.api.controlService({ path: service.path, action: 'stop' });
+           
+           const customCommand = mode === 'prod' ? config.prodCommand : config.devCommand;
+           await window.api.controlService({ path: service.path, action: 'start', mode, customCommand });
+        } else if (action.intent === 'stop') {
+           await window.api.controlService({ path: service.path, action: 'stop' });
+        } else if (action.intent === 'build') {
+           await window.api.controlService({ path: service.path, action: 'start', mode: 'dev', customCommand: 'npm run build', specificStatus: 'building' });
+        } else if (action.intent === 'install') {
+           await window.api.controlService({ path: service.path, action: 'start', mode: 'dev', customCommand: 'npm install', specificStatus: 'installing' });
+        }
+      }));
+
+      await fetchData();
+    } catch (err: any) {
+      console.error("AI Command failed:", err);
+      alert(`Command failed: ${err.message}`);
+    } finally {
+      setIsAiProcessing(false);
+    }
+  };
+
+  const handleSendMessage = async (content: string) => {
+    const newUserMsg: ChatMessage = { role: 'user', content };
+    const updatedMessages = [...chatMessages, newUserMsg];
+    setChatMessages(updatedMessages);
+    setIsBotProcessing(true);
+
+    try {
+      // Gather context
+      const systemContext = services.map(s => 
+        `${s.name} (${s.status})${s.port ? ` at port ${s.port}` : ''}`
+      ).join(', ');
+
+      const response = await AiOrchestrator.chat(updatedMessages, aiSettings, systemContext);
+      
+      const newBotMsg: ChatMessage = { role: 'assistant', content: response };
+      const finalMessages = [...updatedMessages, newBotMsg];
+      setChatMessages(finalMessages);
+      
+      // Persist
+      await window.api.updateConfig({ chatMessages: finalMessages });
+    } catch (err: any) {
+      console.error("Chat failed:", err);
+      setChatMessages(prev => [...prev, { role: 'assistant', content: `⚠️ Error: ${err.message}` }]);
+    } finally {
+      setIsBotProcessing(false);
+    }
+  };
+
+  const handleBotAction = async (intent: string, serviceName: string) => {
+    const service = services.find(s => s.name.toLowerCase() === serviceName.toLowerCase());
+    if (!service) {
+      alert(`Service "${serviceName}" not found in current workbench.`);
+      return;
+    }
+
+    try {
+      if (intent === 'start' || intent === 'stop' || intent === 'restart') {
+        const action = intent === 'restart' ? 'restart' : intent;
+        
+        // Use generic start logic from App.tsx (handling modes)
+        const config = serviceConfigs[service.path] || {};
+        const mode = config.defaultMode || "dev";
+        const customCommand = mode === 'prod' ? config.prodCommand : config.devCommand;
+
+        await window.api.controlService({ 
+          path: service.path, 
+          action: action === 'restart' ? 'start' : action, 
+          mode, 
+          customCommand 
+        });
+        
+        setChatMessages(prev => [...prev, { 
+          role: 'assistant', 
+          content: `✅ Executed ${intent} for **${service.name}**.` 
+        }]);
+        
+        fetchData();
+      }
+    } catch (err: any) {
+      alert(`Action failed: ${err.message}`);
+    }
+  };
+
+  const handleClearChatHistory = async () => {
+    setChatMessages([]);
+    await window.api.updateConfig({ chatMessages: [] });
   };
 
   const handleGroupAction = async (groupId: string, action: "start" | "stop") => {
@@ -689,18 +899,33 @@ function App() {
             >
               <RefreshCw className={`h-5 w-5 ${isRefreshing ? "animate-spin" : ""}`} />
             </button>
-
             <button
               onClick={() => setIsHelpModalOpen(true)}
               className="flex items-center justify-center rounded-xl bg-slate-900/60 p-2.5 border border-slate-700/50 text-slate-400 shadow-xl hover:bg-slate-800 hover:text-cyan-400 transition-all active:scale-95 ml-2"
-              title="Help & Documentation"
+              title="Help & Info"
             >
               <HelpCircle className="h-5 w-5" />
+            </button>
+
+            <button
+              onClick={() => setIsAiSettingsModalOpen(true)}
+              className="flex items-center justify-center rounded-xl bg-slate-900/60 p-2.5 border border-slate-700/50 text-slate-400 shadow-xl hover:bg-slate-800 hover:text-purple-400 transition-all active:scale-95 ml-2"
+              title="AI Settings"
+            >
+              <Sparkles className="h-5 w-5" />
             </button>
           </div>
         </header>
 
         <div className="space-y-12 mt-30">
+          <section className="max-w-4xl mx-auto">
+            <CommandBar 
+              onExecute={executeAiCommand} 
+              isProcessing={isAiProcessing} 
+              selectedCount={selectedServicePaths.size} 
+            />
+          </section>
+          
           {groups.length > 0 && (
             <section>
               <h2 className="text-2xl font-bold tracking-tight text-white mb-8 flex items-center gap-4">
@@ -795,6 +1020,17 @@ function App() {
               <div className={viewMode === 'grid' ? "grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" : "flex flex-col gap-2"}>
                 {viewMode === 'list' && (
                   <div className="flex items-center gap-4 px-6 py-2 text-[10px] font-black text-slate-500 uppercase tracking-widest border-b border-slate-800/50 mb-2">
+                    <button
+                      onClick={() => handleSelectAll(selectedServicePaths.size !== services.length)}
+                      className={cn(
+                        "h-4 w-4 rounded border transition-all flex items-center justify-center shrink-0",
+                        selectedServicePaths.size === services.length && services.length > 0
+                          ? "bg-cyan-500 border-cyan-400 text-slate-950"
+                          : "bg-slate-800 border-slate-700 text-transparent hover:border-cyan-500/50"
+                      )}
+                    >
+                      <Check className={cn("h-3 w-3 stroke-[3px]", (selectedServicePaths.size !== services.length || services.length === 0) && "opacity-0")} />
+                    </button>
                     <div className="flex-1">Service Name</div>
                     <div className="w-20 text-center">Port</div>
                     <div className="w-[180px] text-left">Git Context</div>
@@ -814,6 +1050,9 @@ function App() {
                       onOpenIde={handleOpenIde}
                       isIdeLoading={loadingIdePaths.includes(service.path)}
                       isEnvSwitching={envSwitchingPaths.includes(service.path)}
+                      isSelected={selectedServicePaths.has(service.path)}
+                      onSelect={handleToggleSelect}
+                      aiSettings={aiSettings}
                     />
                   ) : (
                     <ServiceRow
@@ -827,6 +1066,8 @@ function App() {
                       onOpenIde={handleOpenIde}
                       isIdeLoading={loadingIdePaths.includes(service.path)}
                       isEnvSwitching={envSwitchingPaths.includes(service.path)}
+                      isSelected={selectedServicePaths.has(service.path)}
+                      onSelect={handleToggleSelect}
                     />
                   )
                 })}
@@ -849,6 +1090,9 @@ function App() {
         onClose={() => setIsLogModalOpen(false)}
         serviceName={selectedService?.name || ""}
         servicePath={selectedService?.path || ""}
+        aiSettings={aiSettings}
+        onToggle={handleToggleService}
+        onCommand={handleCommand}
       />
 
       <BranchModal
@@ -916,6 +1160,95 @@ function App() {
           setIsRefreshing(true);
           fetchData(true);
         }}
+      />
+
+      {/* AI Search Results Modal */}
+      {searchResults && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-in fade-in duration-300">
+            <div className="w-full max-w-2xl bg-slate-900 border border-cyan-500/30 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[80vh]">
+                <div className="p-4 border-b border-slate-800 flex items-center justify-between bg-cyan-950/20">
+                    <div className="flex items-center gap-3">
+                        <Sparkles className="h-5 w-5 text-cyan-400" />
+                        <span className="text-sm font-black text-white italic tracking-tight uppercase">AI Local Knowledge Found</span>
+                    </div>
+                    <button onClick={() => setSearchResults(null)} className="text-slate-500 hover:text-white transition-colors cursor-pointer">
+                        <X className="h-5 w-5" />
+                    </button>
+                </div>
+                <div className="p-6 overflow-y-auto space-y-4 custom-scrollbar">
+                    {searchResults.length === 0 ? (
+                        <div className="text-center py-10 text-slate-500 font-mono italic">No relevant documentation found.</div>
+                    ) : searchResults.map((res, i) => (
+                        <div key={i} className="p-4 rounded-xl bg-slate-950/50 border border-slate-800 hover:border-cyan-500/30 transition-all group">
+                            <div className="flex items-center justify-between mb-2">
+                                <span className="text-xs font-black text-cyan-500 uppercase tracking-widest">{res.name}</span>
+                                <button 
+                                    onClick={() => handleOpenIde(res.path)}
+                                    className="text-[10px] text-slate-500 hover:text-cyan-400 font-bold uppercase transition-colors cursor-pointer"
+                                >
+                                    Open File
+                                </button>
+                            </div>
+                            <p className="text-xs text-slate-400 font-mono line-clamp-3 leading-relaxed">
+                                {res.excerpt}
+                            </p>
+                        </div>
+                    ))}
+                </div>
+                <div className="p-4 border-t border-slate-800 bg-slate-950/40 text-[10px] text-slate-600 font-mono italic text-center">
+                    Results aggregated from local workbench search safely.
+                </div>
+            </div>
+        </div>
+      )}
+
+      {/* AI Health Report Modal */}
+      {healthReport && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-in fade-in duration-300">
+            <div className="w-full max-w-md bg-slate-900 border border-emerald-500/30 rounded-2xl shadow-2xl overflow-hidden">
+                <div className="p-4 border-b border-slate-800 flex items-center justify-between bg-emerald-950/20">
+                    <div className="flex items-center gap-3">
+                        <Sparkles className="h-5 w-5 text-emerald-400" />
+                        <span className="text-sm font-black text-white italic tracking-tight uppercase">System Health Audit</span>
+                    </div>
+                    <button onClick={() => setHealthReport(null)} className="text-slate-500 hover:text-white transition-colors cursor-pointer">
+                        <X className="h-5 w-5" />
+                    </button>
+                </div>
+                <div className="p-8">
+                    <div className="mb-6 p-4 bg-slate-950/50 rounded-xl border border-slate-800 font-mono text-xs text-emerald-400 whitespace-pre-line leading-relaxed">
+                        {healthReport}
+                    </div>
+                    <button 
+                        onClick={() => setHealthReport(null)}
+                        className="w-full py-3 rounded-xl bg-emerald-600 text-white text-xs font-black uppercase tracking-widest hover:bg-emerald-500 transition-all shadow-lg shadow-emerald-900/20 cursor-pointer"
+                    >
+                        Acknowledged
+                    </button>
+                </div>
+            </div>
+        </div>
+      )}
+      <NetworkMap 
+        isOpen={isNetworkMapOpen}
+        onClose={() => setIsNetworkMapOpen(false)}
+        services={services.map(s => ({ name: s.name, status: s.status, dependencies: s.dependencies || [] }))}
+      />
+      <AiSettingsModal 
+        isOpen={isAiSettingsModalOpen} 
+        onClose={() => setIsAiSettingsModalOpen(false)} 
+        settings={aiSettings}
+        onSave={async (newSettings) => {
+          setAiSettings(newSettings);
+          await window.api.updateConfig({ aiSettings: newSettings });
+        }}
+      />
+      <AiChatbot 
+        messages={chatMessages}
+        onSendMessage={handleSendMessage}
+        onClearHistory={handleClearChatHistory}
+        onExecuteAction={handleBotAction}
+        isProcessing={isBotProcessing}
       />
     </main>
   );

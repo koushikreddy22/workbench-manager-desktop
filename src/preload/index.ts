@@ -28,6 +28,7 @@ const api = {
   restoreService: (data: { workbenchPath: string, serviceName: string }) => ipcRenderer.invoke('restore-service', data),
   deleteArchivedService: (params: { workbenchPath: string, serviceName: string }) => ipcRenderer.invoke('delete-archived-service', params),
   addService: (params: { workbenchPath: string }) => ipcRenderer.invoke('add-service', params),
+  aiChat: (data: any) => ipcRenderer.invoke('ai-chat', data),
 
   // Git
   getGitProfiles: () => ipcRenderer.invoke('get-git-profiles'),

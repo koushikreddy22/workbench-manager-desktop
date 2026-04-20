@@ -1,11 +1,44 @@
 import { ChildProcess, spawn } from 'child_process';
+import pidusage from 'pidusage';
+
+export interface ServiceStats {
+    cpu: number;
+    memory: number;
+    elapsed: number;
+}
 
 export class ProcessManager {
     private processes: Map<string, ChildProcess> = new Map();
     private logs: Map<string, string[]> = new Map();
     private status: Map<string, "stopped" | "starting" | "running" | "error" | "building" | "installing" | "build-error" | "install-error"> = new Map();
     private modes: Map<string, "dev" | "prod" | null> = new Map();
+    private stats: Map<string, ServiceStats> = new Map();
     private MAX_LOG_LINES = 1000;
+    private statsInterval: NodeJS.Timeout | null = null;
+
+    constructor() {
+        this.startStatsPolling();
+    }
+
+    private startStatsPolling() {
+        if (this.statsInterval) return;
+        this.statsInterval = setInterval(async () => {
+            for (const [key, child] of this.processes.entries()) {
+                if (child && child.pid) {
+                    try {
+                        const stats = await pidusage(child.pid);
+                        this.stats.set(key, {
+                            cpu: Math.round(stats.cpu * 10) / 10,
+                            memory: Math.round(stats.memory / (1024 * 1024) * 10) / 10, // MB
+                            elapsed: stats.elapsed
+                        });
+                    } catch (e) {
+                        // Process cleanup or if pidusage fails
+                    }
+                }
+            }
+        }, 3000);
+    }
 
     private getStatusKey(servicePath: string) {
         return servicePath;
@@ -53,6 +86,7 @@ export class ProcessManager {
         child.on('close', (code) => {
             this.addLog(key, `Process exited with code ${code}`);
             this.processes.delete(key);
+            this.stats.delete(key); // Clear stats on close
             
             if (code === 0 || code === null) {
                 this.status.set(key, "stopped");
@@ -68,6 +102,7 @@ export class ProcessManager {
         child.on('error', (err) => {
             this.addLog(key, `Failed to start process: ${err.message}`);
             this.processes.delete(key);
+            this.stats.delete(key); // Clear stats on error
             
             const currentStatus = this.status.get(key);
             if (currentStatus === "building") this.status.set(key, "build-error");
@@ -100,6 +135,7 @@ export class ProcessManager {
                 }
 
                 this.processes.delete(key);
+                this.stats.delete(key); // Clear stats on stop
                 this.status.set(key, "stopped");
                 this.modes.set(key, null); // Clear mode on stop
                 resolve();
@@ -123,10 +159,11 @@ export class ProcessManager {
         return this.logs.get(this.getStatusKey(servicePath)) || [];
     }
 
-    async getServiceStatus(servicePath: string): Promise<{ status: "stopped" | "starting" | "running" | "error" | "building" | "installing" | "build-error" | "install-error", mode: "dev" | "prod" | null }> {
+    async getServiceStatus(servicePath: string): Promise<{ status: "stopped" | "starting" | "running" | "error" | "building" | "installing" | "build-error" | "install-error", mode: "dev" | "prod" | null, stats?: ServiceStats }> {
         return {
             status: this.status.get(this.getStatusKey(servicePath)) || "stopped",
-            mode: this.modes.get(this.getStatusKey(servicePath)) || null
+            mode: this.modes.get(this.getStatusKey(servicePath)) || null,
+            stats: this.stats.get(this.getStatusKey(servicePath))
         };
     }
 

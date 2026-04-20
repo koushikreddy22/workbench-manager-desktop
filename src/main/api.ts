@@ -174,6 +174,128 @@ export function setupIpcHandlers() {
         return config;
     });
 
+    ipcMain.handle('ai-chat', async (_, data: { mode: string, settings: any, messages: any[] }) => {
+        const { mode, settings, messages } = data;
+        
+        if (mode === 'ollama') {
+            try {
+                const res = await fetch(`${settings.ollamaUrl}/api/chat`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        model: settings.ollamaModel,
+                        messages: messages,
+                        stream: false
+                    })
+                });
+                
+                const result: any = await res.json();
+                if (!res.ok) {
+                    throw new Error(result.error || `HTTP ${res.status}: ${res.statusText}`);
+                }
+                
+                if (!result.message?.content) {
+                    throw new Error("Ollama returned an empty or malformed response message.");
+                }
+                
+                return result.message.content;
+            } catch (err: any) {
+                throw new Error(`Ollama failed: ${err.message}`);
+            }
+        }
+
+        if (mode === 'cloud') {
+            const { cloudProvider, cloudModel, apiKey } = settings;
+            if (!apiKey) throw new Error(`${cloudProvider} API key is missing.`);
+
+            try {
+                if (cloudProvider === 'openai') {
+                    const res = await fetch('https://api.openai.com/v1/chat/completions', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+                        body: JSON.stringify({ model: cloudModel, messages })
+                    });
+                    
+                    const result: any = await res.json();
+                    if (!res.ok) {
+                        throw new Error(result.error?.message || `OpenAI Error ${res.status}: ${res.statusText}`);
+                    }
+                    
+                    const content = result.choices?.[0]?.message?.content;
+                    if (!content) throw new Error("OpenAI returned no choices or empty content.");
+                    return content;
+                }
+
+                if (cloudProvider === 'gemini') {
+                    // Extract system message - prepend as first user turn (universally supported)
+                    const systemMsg = messages.find(m => m.role === 'system')?.content;
+                    
+                    // Build contents: optionally prepend system context as a user turn
+                    const contents: any[] = [];
+                    if (systemMsg) {
+                        contents.push({ role: 'user', parts: [{ text: `[System context]: ${systemMsg}` }] });
+                        contents.push({ role: 'model', parts: [{ text: 'Understood. I am ready to assist.' }] });
+                    }
+                    
+                    messages.filter(m => m.role !== 'system').forEach(m => {
+                        contents.push({
+                            role: m.role === 'assistant' ? 'model' : 'user',
+                            parts: [{ text: m.content }]
+                        });
+                    });
+                    
+                    // Strip 'models/' prefix if user provided it to ensure correct URL format
+                    const cleanModel = cloudModel.startsWith('models/') ? cloudModel.replace('models/', '') : cloudModel;
+                    
+                    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${cleanModel}:generateContent?key=${apiKey}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ contents })
+                    });
+                    
+                    const result: any = await res.json();
+                    if (!res.ok) {
+                        throw new Error(result.error?.message || `Gemini Error ${res.status}: ${res.statusText}`);
+                    }
+                    
+                    const text = result.candidates?.[0]?.content?.parts?.[0]?.text;
+                    if (!text) throw new Error("Gemini returned no candidates or empty text parts.");
+                    return text;
+                }
+
+                if (cloudProvider === 'anthropic') {
+                    const res = await fetch('https://api.anthropic.com/v1/messages', {
+                        method: 'POST',
+                        headers: { 
+                            'Content-Type': 'application/json', 
+                            'x-api-key': apiKey,
+                            'anthropic-version': '2023-06-01'
+                        },
+                        body: JSON.stringify({
+                            model: cloudModel,
+                            max_tokens: 1024,
+                            system: messages.find(m => m.role === 'system')?.content,
+                            messages: messages.filter(m => m.role !== 'system').map(m => ({ role: m.role, content: m.content }))
+                        })
+                    });
+                    
+                    const result: any = await res.json();
+                    if (!res.ok) {
+                        throw new Error(result.error?.message || `Anthropic Error ${res.status}: ${res.statusText}`);
+                    }
+                    
+                    const text = result.content?.[0]?.text;
+                    if (!text) throw new Error("Anthropic returned empty content array.");
+                    return text;
+                }
+            } catch (err: any) {
+                throw new Error(`Cloud AI Error: ${err.message}`);
+            }
+        }
+
+        throw new Error("Unsupported AI mode");
+    });
+
     // Services
     ipcMain.handle('get-services', async (_, workbenchPath: string, forceRefresh = false) => {
         if (!workbenchPath || !fs.existsSync(workbenchPath)) return { services: [] };
@@ -197,7 +319,7 @@ export function setupIpcHandlers() {
                     // Merge with live status from processManager
                     const mergedServices = await Promise.all(cachedData.services.map(async (svc: any) => {
                         const status = await processManager.getServiceStatus(svc.path);
-                        return { ...svc, status: status.status, mode: status.mode };
+                        return { ...svc, status: status.status, mode: status.mode, stats: status.stats };
                     }));
                     return { services: mergedServices };
                 }
@@ -323,6 +445,7 @@ export function setupIpcHandlers() {
                         path: fullPath,
                         status: serviceStatus.status,
                         mode: serviceStatus.mode,
+                        stats: serviceStatus.stats,
                         port: detectedPort,
                         gitBranch,
                         gitStatus,
@@ -336,6 +459,20 @@ export function setupIpcHandlers() {
         );
 
         const filteredServices = services.filter(Boolean);
+
+        // Heuristic Dependency Detection
+        filteredServices.forEach((service: any) => {
+            try {
+                const pkgPath = path.join(service.path, 'package.json');
+                if (fs.existsSync(pkgPath)) {
+                    const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
+                    const deps = { ...pkg.dependencies, ...pkg.devDependencies };
+                    service.dependencies = filteredServices
+                        .filter((s: any) => s.name !== service.name && deps[s.name])
+                        .map((s: any) => s.name);
+                }
+            } catch (e) { }
+        });
         
         // Save to cache
         try {
@@ -625,6 +762,10 @@ export function setupIpcHandlers() {
         try {
             if (action === 'checkout') await gitQueue.add(() => execAsync(`git checkout ${branch}`, { cwd: repoPath, env: GIT_ENV }));
             else if (action === 'pull') await gitQueue.add(() => execAsync('git pull', { cwd: repoPath, env: GIT_ENV }));
+            else if (action === 'get-diff') {
+                const { stdout } = await gitQueue.add(() => execAsync('git diff HEAD --stat && git diff HEAD', { cwd: repoPath, env: GIT_ENV }));
+                return { diff: stdout };
+            }
             else if (action === 'get-branches') {
                 // Highly optimized branch listing for large repositories
                 const { stdout } = await gitQueue.add(() => execAsync('git for-each-ref --format="%(refname:short)" refs/heads/ refs/remotes/origin/', { cwd: repoPath, env: GIT_ENV }));
@@ -828,5 +969,47 @@ export function setupIpcHandlers() {
 
     ipcMain.handle('git-plugin-remove-connection', (_, { id }) => {
         return gitPluginManager.removeConnection(id);
+    });
+
+    // AI & Search
+    ipcMain.handle('search-docs', async (_, { workbenchPath, query }) => {
+        if (!workbenchPath || !fs.existsSync(workbenchPath)) return { results: [] };
+        
+        const results: { path: string; excerpt: string; name: string }[] = [];
+        const ignoredDirs = ['node_modules', '.git', '.vantage-archive', 'dist', 'out', '.next'];
+        const allowedExts = ['.md', '.txt', '.json', '.js', '.ts', '.yml', '.yaml'];
+
+        async function walk(dir: string) {
+            const entries = fs.readdirSync(dir, { withFileTypes: true });
+            for (const entry of entries) {
+                const fullPath = path.join(dir, entry.name);
+                if (entry.isDirectory()) {
+                    if (!ignoredDirs.includes(entry.name)) await walk(fullPath);
+                } else if (entry.isFile()) {
+                    if (allowedExts.includes(path.extname(entry.name))) {
+                        try {
+                            const content = fs.readFileSync(fullPath, 'utf8');
+                            if (content.toLowerCase().includes(query.toLowerCase())) {
+                                const index = content.toLowerCase().indexOf(query.toLowerCase());
+                                const start = Math.max(0, index - 50);
+                                const end = Math.min(content.length, index + query.length + 50);
+                                results.push({
+                                    path: fullPath,
+                                    name: entry.name,
+                                    excerpt: (start > 0 ? '...' : '') + content.substring(start, end).replace(/\n/g, ' ') + (end < content.length ? '...' : '')
+                                });
+                            }
+                        } catch (e) {}
+                    }
+                }
+                if (results.length > 50) break; // Limit results
+            }
+        }
+
+        try {
+            await walk(workbenchPath);
+        } catch (e) {}
+        
+        return { results };
     });
 }

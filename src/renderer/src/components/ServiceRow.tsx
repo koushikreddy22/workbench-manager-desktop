@@ -32,9 +32,11 @@ interface ServiceRowProps {
     activeEnv?: { name: string; color: string } | null;
     envProfiles?: { id: string; name: string; color: string }[];
     activeEnvId?: string | null;
+    isSelected?: boolean;
+    onSelect?: (path: string) => void;
 }
 
-export function ServiceRow({ name, path, status, mode, port, gitBranch, gitStatus, envProfiles, activeEnvId, customButtons, onToggle, onCommand, onOpenIde, isIdeLoading, isEnvSwitching }: ServiceRowProps) {
+export function ServiceRow({ name, path, status, mode, port, gitBranch, gitStatus, envProfiles, activeEnvId, customButtons, onToggle, onCommand, onOpenIde, isIdeLoading, isEnvSwitching, isSelected, onSelect }: ServiceRowProps) {
     const [menuOpen, setMenuOpen] = useState(false);
     const [menuPosition, setMenuPosition] = useState<{ top: number, left: number | 'auto', right: number | 'auto' }>({ top: 0, left: 0, right: 'auto' });
     const menuRef = useRef<HTMLDivElement>(null);
@@ -94,8 +96,20 @@ export function ServiceRow({ name, path, status, mode, port, gitBranch, gitStatu
                 ? mode === "prod"
                     ? "bg-amber-950/10 border-amber-500/20 hover:bg-amber-950/20"
                     : "bg-cyan-950/10 border-cyan-500/20 hover:bg-cyan-950/20"
-                : "bg-slate-900/40 border-slate-800/50 hover:bg-slate-900/60"
+                : "bg-slate-900/40 border-slate-800/50 hover:bg-slate-900/60",
+            isSelected && "border-cyan-500/40 bg-cyan-900/5 shadow-[0_0_15px_rgba(6,182,212,0.05)]"
         )}>
+            <button
+                onClick={() => onSelect?.(path)}
+                className={cn(
+                    "h-4 w-4 rounded border transition-all flex items-center justify-center shrink-0",
+                    isSelected
+                        ? "bg-cyan-500 border-cyan-400 text-slate-950"
+                        : "bg-slate-800 border-slate-700 text-transparent hover:border-cyan-500/50"
+                )}
+            >
+                <Check className={cn("h-3 w-3 stroke-[3px]", !isSelected && "opacity-0")} />
+            </button>
             {/* 1. Status & Name (Flexible) */}
             <div className="flex items-center gap-3 flex-1 min-w-0">
                 <div className={cn("h-2.5 w-2.5 shrink-0 rounded-full", statusColor)} title={status} />
