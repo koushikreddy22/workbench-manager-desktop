@@ -3,7 +3,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Sparkles, X, Send, User, Bot, 
   Trash2, Maximize2, Minimize2,
-  Play, Square, RefreshCcw
+  Play, Square, RefreshCcw, Database, ShieldCheck,
+  Terminal, Zap, Loader2, AlertCircle, CheckCircle2
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { ChatMessage } from '../lib/ai-orchestrator';
@@ -14,18 +15,25 @@ interface AiChatbotProps {
   onClearHistory: () => void;
   onExecuteAction: (intent: string, service: string) => void;
   isProcessing: boolean;
+  workbenchPath?: string | null;
+  settings: any; // We'll use any for now to avoid circular import or just pass the needed parts
 }
 
 export const AiChatbot: React.FC<AiChatbotProps> = ({ 
   messages, 
   onSendMessage, 
-  onClearHistory,
+  onClearHistory, 
   onExecuteAction,
-  isProcessing 
+  isProcessing,
+  workbenchPath,
+  settings
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
   const [input, setInput] = useState('');
+  const [shellExecuting, setShellExecuting] = useState<string | null>(null);
+  const [autoExecutedActions] = useState(new Set<string>());
+  const [executionResults, setExecutionResults] = useState<Record<string, { success: boolean, error?: string }>>({});
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -33,6 +41,65 @@ export const AiChatbot: React.FC<AiChatbotProps> = ({
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [messages, isOpen]);
+
+  // Auto-Pilot Effect: Scan the last message for actions to auto-execute
+  useEffect(() => {
+    if (!settings?.autoPilot) return;
+    
+    const lastMessage = messages[messages.length - 1];
+    if (!lastMessage || lastMessage.role !== 'assistant') return;
+
+    const actionRegex = /\[(SHELL|CREATE_FILE|FIX_FILE): ([\s\S]+?)\]/g;
+    let match;
+
+    while ((match = actionRegex.exec(lastMessage.content)) !== null) {
+      const [tag, type, payload] = match;
+      const actionKey = `${lastMessage.timestamp}-${match.index}`;
+
+      if (!autoExecutedActions.has(actionKey)) {
+        autoExecutedActions.add(actionKey);
+        
+        // Use a small delay for visual feedback
+        setTimeout(() => {
+          if (type === 'SHELL') {
+             handleAutoShell(payload, actionKey);
+          } else {
+             handleAutoFile(type, payload, lastMessage.content, match.index + tag.length, actionKey);
+          }
+        }, 800);
+      }
+    }
+  }, [messages, settings?.autoPilot]);
+
+  const handleAutoShell = async (command: string, key?: string) => {
+    if (!workbenchPath) return;
+    setShellExecuting(command);
+    try {
+      const result = await (window as any).api.shellCommand({ command, cwd: workbenchPath });
+      if (key) {
+        setExecutionResults(prev => ({ 
+          ...prev, 
+          [key]: { success: result.success, error: result.error } 
+        }));
+      }
+    } catch (e: any) { 
+      console.error("Auto-shell failed:", e); 
+      if (key) setExecutionResults(prev => ({ ...prev, [key]: { success: false, error: e.message } }));
+    }
+    finally { setShellExecuting(null); }
+  };
+
+  const handleAutoFile = async (type: string, filePath: string, content: string, startIndex: number, key?: string) => {
+    const codeMatch = content.substring(startIndex).match(/```(?:\w+)?\n([\s\S]*?)```/);
+    if (codeMatch && codeMatch[1]) {
+      try {
+        await onExecuteAction(type === 'CREATE_FILE' ? 'create-file' : 'fix-file', filePath + "|" + codeMatch[1]);
+        if (key) setExecutionResults(prev => ({ ...prev, [key]: { success: true } }));
+      } catch (e: any) {
+        if (key) setExecutionResults(prev => ({ ...prev, [key]: { success: false, error: e.message } }));
+      }
+    }
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -43,39 +110,199 @@ export const AiChatbot: React.FC<AiChatbotProps> = ({
   };
 
   const renderContent = (content: string) => {
-    // Basic Action Parser: [ACTION: intent service]
-    const actionRegex = /\[ACTION: (\w+) ([\w-]+)\]/g;
     const parts: React.ReactNode[] = [];
+    
+    // Pattern 1: Autonomous Tags [SHELL: ...], [CREATE_FILE: ...], [FIX_FILE: ...]
+    // Pattern 2: Legacy Action Tags [ACTION: intent service]
+    const unifiedRegex = /\[(SHELL|CREATE_FILE|FIX_FILE): ([\s\S]+?)\]|\[ACTION: (\w+) ([\w-]+)\]/g;
+    
     let lastIndex = 0;
     let match;
 
-    while ((match = actionRegex.exec(content)) !== null) {
-      // Push text before action
+    while ((match = unifiedRegex.exec(content)) !== null) {
+      // Text segment before the match
       if (match.index > lastIndex) {
-        parts.push(<span key={`text-${lastIndex}`}>{content.substring(lastIndex, match.index)}</span>);
+        parts.push(renderMarkdown(content.substring(lastIndex, match.index)));
       }
 
-      const [_, intent, service] = match;
-      parts.push(
-        <button
-          key={`action-${match.index}`}
-          onClick={() => onExecuteAction(intent, service)}
-          className="my-2 flex items-center gap-2 px-3 py-1.5 bg-cyan-500/20 border border-cyan-500/30 rounded-lg text-cyan-400 font-bold text-xs hover:bg-cyan-500/30 transition-all group"
-        >
-          {intent === 'start' && <Play className="h-3 w-3 fill-current" />}
-          {intent === 'stop' && <Square className="h-3 w-3 fill-current" />}
-          {intent === 'restart' && <RefreshCcw className="h-3 w-3" />}
-          {intent.toUpperCase()} {service}
-        </button>
-      );
-      lastIndex = actionRegex.lastIndex;
+      const [tag, type, payloadOrIntent, tagIntent, service] = match;
+      const actionKey = `${messages[messages.length - 1]?.timestamp}-${match.index}`; // Simplified key for rendering
+      const result = executionResults[actionKey];
+      
+      if (type === 'SHELL') {
+        const command = payloadOrIntent;
+        parts.push(
+          <div key={`shell-action-${match.index}`} className={cn(
+            "my-4 p-4 bg-slate-950 border rounded-2xl space-y-3 shadow-lg group transition-all",
+            result ? (result.success ? "border-emerald-500/50" : "border-red-500/50") : "border-emerald-500/30"
+          )}>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className={cn(
+                  "p-1.5 rounded-lg",
+                  result ? (result.success ? "bg-emerald-500/20 text-emerald-400" : "bg-red-500/20 text-red-400") : "bg-emerald-500/20 text-emerald-400"
+                )}>
+                  {result ? (result.success ? <CheckCircle2 className="h-3.5 w-3.5" /> : <AlertCircle className="h-3.5 w-3.5" />) : <Terminal className="h-3.5 w-3.5" />}
+                </div>
+                <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest italic">Terminal Action</span>
+              </div>
+              {settings?.autoPilot && !result && <span className="text-[10px] text-emerald-500 font-bold animate-pulse">Auto-Executing...</span>}
+              {result && <span className={cn("text-[10px] font-bold uppercase", result.success ? "text-emerald-500" : "text-red-500")}>
+                {result.success ? "Execution Success" : "Execution Failed"}
+              </span>}
+            </div>
+            <div className={cn(
+              "bg-black/50 p-3 rounded-xl border font-mono text-[10px] break-all leading-relaxed",
+              result ? (result.success ? "border-emerald-500/10 text-emerald-400" : "border-red-500/10 text-red-400") : "border-white/5 text-emerald-400"
+            )}>
+              {command}
+            </div>
+            {result?.error && (
+              <div className="p-2 bg-red-500/10 border border-red-500/20 rounded-lg text-[9px] text-red-400 font-mono">
+                {result.error}
+              </div>
+            )}
+            {!settings?.autoPilot && !result && (
+              <button
+                onClick={() => handleAutoShell(command, actionKey)}
+                disabled={shellExecuting === command}
+                className="w-full py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all shadow-[0_4px_10px_rgba(16,185,129,0.3)] active:scale-95 flex items-center justify-center gap-2"
+              >
+                {shellExecuting === command ? <Loader2 className="h-3 w-3 animate-spin" /> : <Zap className="h-3 w-3" />}
+                {shellExecuting === command ? 'Executing...' : 'Run Terminal Action'}
+              </button>
+            )}
+          </div>
+        );
+      } else if (type === 'CREATE_FILE' || type === 'FIX_FILE') {
+        const filePath = payloadOrIntent;
+        const codeContentMatch = content.substring(match.index + tag.length).match(/```(?:\w+)?\n([\s\S]*?)```/);
+
+        parts.push(
+          <div key={`file-action-${match.index}`} className={cn(
+            "my-4 p-4 bg-slate-950 border rounded-2xl space-y-3 shadow-lg overflow-hidden group transition-all",
+            result ? (result.success ? "border-purple-500/50" : "border-red-500/50") : "border-purple-500/30"
+          )}>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className={cn(
+                  "p-1.5 rounded-lg",
+                  result ? (result.success ? "bg-purple-500/20 text-purple-400" : "bg-red-500/20 text-red-400") : "bg-purple-500/20 text-purple-400"
+                )}>
+                  {result ? (result.success ? <CheckCircle2 className="h-3.5 w-3.5" /> : <AlertCircle className="h-3.5 w-3.5" />) : <Database className="h-3.5 w-3.5" />}
+                </div>
+                <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest">{type === 'CREATE_FILE' ? 'New File' : 'Suggested Fix'}</span>
+              </div>
+              {settings?.autoPilot && !result && <span className="text-[10px] text-purple-400 font-bold animate-pulse">Auto-Scaffolding...</span>}
+              {result && <span className={cn("text-[10px] font-bold uppercase", result.success ? "text-purple-500" : "text-red-500")}>
+                {result.success ? "Scaffolded" : "Scaffold Failed"}
+              </span>}
+            </div>
+            <span className={cn(
+              "text-[10px] font-mono truncate block",
+              result?.success ? "text-purple-400" : "text-slate-500"
+            )}>{filePath}</span>
+            
+            {result?.error && (
+              <div className="p-2 bg-red-500/10 border border-red-500/20 rounded-lg text-[9px] text-red-400 font-mono">
+                {result.error}
+              </div>
+            )}
+
+            {!settings?.autoPilot && !result && (
+              <button
+                onClick={() => handleAutoFile(type, filePath, content, match.index + tag.length, actionKey)}
+                className="w-full py-2 bg-purple-600 hover:bg-purple-500 text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all shadow-[0_4px_10px_rgba(147,51,234,0.3)] active:scale-95 flex items-center justify-center gap-2"
+              >
+                {type === 'CREATE_FILE' ? <Maximize2 className="h-3 w-3" /> : <ShieldCheck className="h-3 w-3" />}
+                {type === 'CREATE_FILE' ? 'Generate File' : 'Apply Implementation'}
+              </button>
+            )}
+          </div>
+        );
+
+        // Skip the code block in the main rendering
+        if (codeContentMatch) {
+          unifiedRegex.lastIndex = match.index + tag.length + (codeContentMatch.index || 0) + codeContentMatch[0].length;
+        }
+      } else {
+        // Tag intent from legacy ACTION pattern
+        const intent = tagIntent;
+        const sName = service;
+        parts.push(
+          <button
+            key={`action-${match.index}`}
+            onClick={() => onExecuteAction(intent, sName)}
+            className="my-2 flex items-center gap-2 px-3 py-1.5 bg-cyan-500/20 border border-cyan-500/30 rounded-lg text-cyan-400 font-bold text-xs hover:bg-cyan-500/30 transition-all group shadow-sm"
+          >
+            {intent === 'start' && <Play className="h-3 w-3 fill-current" />}
+            {intent === 'stop' && <Square className="h-3 w-3 fill-current" />}
+            {intent === 'restart' && <RefreshCcw className="h-3 w-3" />}
+            {intent?.toUpperCase()} {sName}
+          </button>
+        );
+      }
+
+      lastIndex = unifiedRegex.lastIndex;
     }
 
     if (lastIndex < content.length) {
-      parts.push(<span key={`text-${lastIndex}`}>{content.substring(lastIndex)}</span>);
+      const remaining = content.substring(lastIndex);
+      parts.push(
+        <motion.div
+           initial={{ opacity: 0 }}
+           animate={{ opacity: 1 }}
+           key={`text-${lastIndex}`}
+        >
+          {renderMarkdown(remaining)}
+        </motion.div>
+      );
     }
 
     return parts.length > 0 ? parts : content;
+  };
+
+  // Luxury Markdown-lite Renderer
+  const renderMarkdown = (text: string) => {
+    // Fenced code blocks
+    const lines = text.split('\n');
+    const elements: React.ReactNode[] = [];
+    let currentBlock: string[] = [];
+    let inCodeBlock = false;
+
+    lines.forEach((line, i) => {
+      if (line.startsWith('```')) {
+        if (inCodeBlock) {
+          elements.push(
+            <pre key={`code-${i}`} className="my-3 p-4 bg-slate-950 border border-white/5 rounded-xl text-[11px] font-mono overflow-x-auto text-cyan-300 shadow-inner">
+              <code>{currentBlock.join('\n')}</code>
+            </pre>
+          );
+          currentBlock = [];
+          inCodeBlock = false;
+        } else {
+          inCodeBlock = true;
+        }
+      } else if (inCodeBlock) {
+        currentBlock.push(line);
+      } else {
+        // Handle bold, italic, and inline code
+        let processedLine: any = line;
+        
+        // Inline code
+        processedLine = processedLine.split(/(`[^`]+`)/g).map((part: string, pi: number) => {
+           if (part.startsWith('`') && part.endsWith('`')) {
+             return <code key={pi} className="px-1.5 py-0.5 bg-white/10 rounded font-mono text-purple-300">{part.slice(1, -1)}</code>;
+           }
+           return part;
+        });
+
+        // Bold (very simplified)
+        elements.push(<p key={`p-${i}`} className="mb-2 last:mb-0 min-h-[1em]">{processedLine}</p>);
+      }
+    });
+
+    return <div key={Math.random()}>{elements}</div>;
   };
 
   return (

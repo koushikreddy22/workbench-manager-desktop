@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { Play, Square, FileText, GitBranch, MoreVertical, Download, Settings, RefreshCw, Wrench, Rocket, Code, ArrowUp, ArrowDown, FolderOpen, Copy, Check, Database, Plus, Edit2, Archive, Sparkles, X } from "lucide-react";
 import { cn } from "../lib/utils";
+import { motion, AnimatePresence } from "framer-motion";
 import { AiOrchestrator } from "../lib/ai-orchestrator";
 import { AiSettings } from "./AiSettingsModal";
 
@@ -63,12 +64,30 @@ export function ServiceCard({ name, path, status, mode, port, gitBranch, gitStat
     const toggleMenu = () => {
         if (!menuOpen && menuRef.current) {
             const rect = menuRef.current.getBoundingClientRect();
+            const menuWidth = 224; // w-56
+            const menuHeight = 320; // estimate for max-h
+            
+            const spaceBelow = window.innerHeight - rect.bottom;
             const spaceOnRight = window.innerWidth - rect.right;
-            if (spaceOnRight < 224) {
-                setMenuPosition({ top: rect.bottom + 8, left: 'auto', right: window.innerWidth - rect.right });
-            } else {
-                setMenuPosition({ top: rect.bottom + 8, left: rect.left, right: 'auto' });
+            
+            let top: number | 'auto' = rect.bottom + 8;
+            let bottom: number | 'auto' = 'auto';
+            let left: number | 'auto' = rect.left;
+            let right: number | 'auto' = 'auto';
+
+            // Vertical Flip Logic
+            if (spaceBelow < menuHeight && rect.top > menuHeight) {
+                top = 'auto';
+                bottom = window.innerHeight - rect.top + 8;
             }
+
+            // Horizontal Alignment Logic
+            if (spaceOnRight < menuWidth) {
+                left = 'auto';
+                right = window.innerWidth - rect.right;
+            }
+
+            setMenuPosition({ top, bottom, left, right } as any);
         }
         setMenuOpen(!menuOpen);
     };
@@ -117,15 +136,19 @@ export function ServiceCard({ name, path, status, mode, port, gitBranch, gitStat
 
     const statusColor =
         status === "running"
-            ? "bg-green-500"
+            ? "bg-green-500 shadow-[0_0_12px_rgba(34,197,94,0.4)]"
             : (status === "starting" || status === "building" || status === "installing")
-                ? "bg-yellow-500"
+                ? "bg-yellow-500 shadow-[0_0_12px_rgba(234,179,8,0.4)] animate-pulse"
                 : (status === "error" || status === "build-error" || status === "install-error")
-                    ? "bg-red-500"
+                    ? "bg-red-500 shadow-[0_0_12px_rgba(239,68,68,0.4)]"
                     : "bg-gray-400";
 
     return (
-        <div className={cn(
+        <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            whileHover={{ y: -4, transition: { duration: 0.2 } }}
+            className={cn(
             "group relative rounded-2xl border transition-all duration-300 shadow-2xl backdrop-blur-md p-6",
             status === "running"
                 ? mode === "prod"
@@ -152,8 +175,8 @@ export function ServiceCard({ name, path, status, mode, port, gitBranch, gitStat
                         </button>
                         <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-3">
-                                <div className={cn("h-3 w-3 shrink-0 rounded-full shadow-[0_0_8px_rgba(0,0,0,0.5)]", statusColor)} />
-                                <h3 className="text-lg font-bold text-white group-hover:text-cyan-400 transition-colors break-words leading-tight" title={name}>
+                                 <div className={cn("h-3 w-3 shrink-0 rounded-full", statusColor)} />
+                                <h3 className="text-lg font-black text-white group-hover:text-cyan-400 transition-colors break-words leading-tight tracking-tight" title={name}>
                                     {name}
                                 </h3>
                             </div>
@@ -221,13 +244,15 @@ export function ServiceCard({ name, path, status, mode, port, gitBranch, gitStat
                         {menuOpen && createPortal(
                             <div
                                 onMouseDown={(e) => e.stopPropagation()}
-                                className="fixed z-50 w-56 rounded-xl border border-slate-700/50 bg-slate-900 shadow-2xl backdrop-blur-xl animate-in fade-in zoom-in-95 duration-200 overflow-hidden"
+                                className="fixed z-50 w-56 rounded-xl border border-slate-700/50 bg-slate-900 shadow-2xl backdrop-blur-xl animate-in fade-in zoom-in-95 duration-200 overflow-hidden flex flex-col max-h-[320px]"
                                 style={{
                                     top: menuPosition.top,
+                                    bottom: (menuPosition as any).bottom,
                                     ...(menuPosition.left !== 'auto' ? { left: menuPosition.left } : {}),
                                     ...(menuPosition.right !== 'auto' ? { right: menuPosition.right } : {})
                                 }}
                             >
+                                <div className="overflow-y-auto custom-scrollbar flex-1">
                                 <div className="px-3 py-2 text-[10px] font-black text-cyan-500/60 uppercase tracking-widest bg-slate-950/40">
                                     Vantage Tools
                                 </div>
@@ -278,7 +303,7 @@ export function ServiceCard({ name, path, status, mode, port, gitBranch, gitStat
                                     <Play className="h-4 w-4 text-slate-500" /> Production Start
                                 </button>
 
-                                {gitStatus?.hasLocalChanges && (
+                                 {gitStatus?.hasLocalChanges && (
                                      <>
                                         <div className="border-t border-slate-800/80 my-1"></div>
                                         <button
@@ -288,7 +313,8 @@ export function ServiceCard({ name, path, status, mode, port, gitBranch, gitStat
                                             <Sparkles className="h-4 w-4 text-purple-500" /> AI Git Liaison
                                         </button>
                                      </>
-                                )}
+                                 )}
+                                </div>
                             </div>,
                             document.body
                         )}
@@ -513,6 +539,6 @@ export function ServiceCard({ name, path, status, mode, port, gitBranch, gitStat
                     </div>
                 </div>
             )}
-        </div>
+        </motion.div>
     );
 }

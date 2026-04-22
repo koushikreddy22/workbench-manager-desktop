@@ -562,7 +562,7 @@ function App() {
         `${s.name} (${s.status})${s.port ? ` at port ${s.port}` : ''}`
       ).join(', ');
 
-      const response = await AiOrchestrator.chat(updatedMessages, aiSettings, systemContext);
+      const response = await AiOrchestrator.chat(updatedMessages, aiSettings, systemContext, activeWorkbench?.path);
       
       const newBotMsg: ChatMessage = { role: 'assistant', content: response };
       const finalMessages = [...updatedMessages, newBotMsg];
@@ -588,8 +588,6 @@ function App() {
     try {
       if (intent === 'start' || intent === 'stop' || intent === 'restart') {
         const action = intent === 'restart' ? 'restart' : intent;
-        
-        // Use generic start logic from App.tsx (handling modes)
         const config = serviceConfigs[service.path] || {};
         const mode = config.defaultMode || "dev";
         const customCommand = mode === 'prod' ? config.prodCommand : config.devCommand;
@@ -610,6 +608,28 @@ function App() {
       }
     } catch (err: any) {
       alert(`Action failed: ${err.message}`);
+    }
+
+    // Special handlers for file actions (don't require a 'service' match necessarily)
+    if (intent === 'create-file' || intent === 'fix-file') {
+       try {
+          if (!activeWorkbench) return;
+          const [relPath, ...contentParts] = serviceName.split('|');
+          const content = contentParts.join('|'); // Rejoin in case content had pipes
+          
+          // Construct full path
+          // We'll use a simple slash joining since it's verified in main process validatePath
+          const fullPath = activeWorkbench.path + (activeWorkbench.path.endsWith('\\') || activeWorkbench.path.endsWith('/') ? '' : '/') + relPath;
+          
+          await window.api.fsWriteFile({ filePath: fullPath, content });
+          
+          setChatMessages(prev => [...prev, { 
+            role: 'assistant', 
+            content: `✅ Successfully ${intent === 'create-file' ? 'created' : 'applied fix to'} \`${relPath}\`.` 
+          }]);
+       } catch (err: any) {
+          alert(`File action failed: ${err.message}`);
+       }
     }
   };
 
@@ -730,17 +750,18 @@ function App() {
   }
 
   return (
-    <main className="min-h-screen bg-[#0B0F19] p-8 pt-12 text-slate-200 relative overflow-x-hidden bg-vantage-mesh">
+    <main className="min-h-screen bg-[#0B0F19] p-4 pt-8 text-slate-200 relative overflow-x-hidden bg-vantage-mesh text-center lg:text-left transition-all">
       <div className="fixed inset-0 z-0 pointer-events-none flex items-center justify-center overflow-hidden opacity-[0.08] dark:opacity-[0.12]">
         <img src={logo} alt="" className="w-2/3 min-w-[800px] h-auto object-contain blur-[2px] transition-all duration-1000" />
       </div>
       <div className="mx-auto max-w-7xl relative z-10 transition-all">
-        <header className="px-[20px] fixed top-0 left-0 w-full mb-12 flex flex-col lg:flex-row items-center justify-between gap-6 pb-6 pt-4 border-b border-slate-800/60 backdrop-blur-md z-50 bg-[#0B0F19]/95 text-center lg:text-left transition-all">          <div className="flex flex-col sm:flex-row items-center gap-6">
-          <div className="w-16 h-16 rounded-2xl bg-slate-900/40 backdrop-blur-md shadow-2xl border border-slate-700/50 p-2.5 flex items-center justify-center transform hover:scale-105 transition-all">
+        <header className="px-[20px] fixed top-0 left-0 w-full flex flex-col lg:flex-row items-center justify-between gap-4 py-3 border-b border-slate-800/60 backdrop-blur-md z-50 bg-[#0B0F19]/95 transition-all">
+          <div className="flex flex-col sm:flex-row items-center gap-4">
+          <div className="w-12 h-12 rounded-xl bg-slate-900/40 backdrop-blur-md shadow-2xl border border-slate-700/50 p-2 flex items-center justify-center transform hover:scale-105 transition-all">
             <img src={logo} alt="Vantage" className="w-full h-full object-contain drop-shadow-[0_0_15px_rgba(14,165,233,0.4)]" />
           </div>
           <div>
-            <h1 className="text-5xl font-black tracking-tight text-white mb-2">
+            <h1 className="text-3xl font-black tracking-tighter text-white">
               <span className="bg-gradient-to-r from-indigo-400 via-cyan-400 to-sky-400 bg-clip-text text-transparent">Vantage</span> Dashboard
             </h1>
 
@@ -917,7 +938,7 @@ function App() {
           </div>
         </header>
 
-        <div className="space-y-12 mt-30">
+        <div className="space-y-8 mt-24">
           <section className="max-w-4xl mx-auto">
             <CommandBar 
               onExecute={executeAiCommand} 
@@ -1249,6 +1270,8 @@ function App() {
         onClearHistory={handleClearChatHistory}
         onExecuteAction={handleBotAction}
         isProcessing={isBotProcessing}
+        workbenchPath={workbenchPath || ""}
+        settings={aiSettings}
       />
     </main>
   );

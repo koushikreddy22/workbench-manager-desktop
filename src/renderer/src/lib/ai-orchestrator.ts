@@ -30,7 +30,12 @@ export class AiOrchestrator {
     private static async callOllama(prompt: string, settings: AiSettings, history: ChatMessage[] = []): Promise<string> {
         const messages = history.length > 0 ? history : [{ role: 'user', content: prompt }];
         try {
-            return await window.api.aiChat({ mode: 'ollama', settings, messages });
+            return await window.api.aiChat({ 
+                mode: 'ollama', 
+                settings, 
+                messages,
+                customSystemPrompt: settings.systemPrompt 
+            });
         } catch (err: any) {
             console.error("Main process AI call failed:", err);
             throw new Error(`Ollama Proxy failed: ${err.message}`);
@@ -40,14 +45,19 @@ export class AiOrchestrator {
     private static async callCloudProvider(prompt: string, settings: AiSettings, history: ChatMessage[] = []): Promise<string> {
         const messages = history.length > 0 ? history : [{ role: 'user', content: prompt }];
         try {
-            return await window.api.aiChat({ mode: 'cloud', settings, messages });
+            return await window.api.aiChat({ 
+                mode: 'cloud', 
+                settings, 
+                messages,
+                customSystemPrompt: settings.systemPrompt 
+            });
         } catch (err: any) {
             console.error("Main process AI call failed:", err);
             throw new Error(err.message);
         }
     }
 
-    static async chat(messages: ChatMessage[], settings: AiSettings, systemContext: string): Promise<string> {
+    static async chat(messages: ChatMessage[], settings: AiSettings, systemContext: string, workbenchPath?: string): Promise<string> {
         if (settings.mode === 'native') {
             const lastMsg = messages[messages.length - 1].content.toLowerCase();
             if (lastMsg.includes('status')) return `System Context: ${systemContext}`;
@@ -55,12 +65,42 @@ export class AiOrchestrator {
             return "Vantage Co-pilot (Native Mode): I'm currently running in heuristic mode. Switch to Ollama or Cloud mode in Settings for a full LLM experience!";
         }
 
+        let fileTreeContext = "";
+        if (workbenchPath) {
+            try {
+                const files = await window.api.fsListWorkbench(workbenchPath);
+                fileTreeContext = `\nActive Workspace File Tree:\n${files.join('\n')}`;
+            } catch (e) {
+                console.warn("Failed to fetch file tree for context:", e);
+            }
+        }
+
         const fullHistory: ChatMessage[] = [
-            { role: 'system', content: `You are Vantage Co-pilot, an expert developer assistant. 
-              Current Workbench Context: ${systemContext}.
-              You can suggest actions using this format: [ACTION: intent service-name]. 
-              Available intents: start, stop, restart, build, install.
-              Example: "I see the auth-service is stopped. Would you like me to start it? [ACTION: start auth-service]"` },
+            { role: 'system', content: `You are Vantage Co-pilot, an expert senior developer assistant. 
+              
+              Current Context:
+              - Active Workspace Root: ${workbenchPath}
+              - Services/System: ${systemContext}
+              ${fileTreeContext}
+
+              IMPORTANT: All [SHELL] and [CREATE_FILE] commands MUST be executed relative to the "Active Workspace Root" defined above.
+
+              Capabilities:
+              1. TERMINAL: To run a shell command (install, build, npx, etc.), use: [SHELL: command]
+              2. SERVICE CONTROL: Suggest [ACTION: intent service-name]. Intents: start, stop, restart.
+              3. SCAFFOLDING: To create a new file, use: [CREATE_FILE: path]
+                 \`\`\`
+                 code content
+                 \`\`\`
+              4. REMEDIATION: To suggest a fix, provide the FULL new content for the file using: [FIX_FILE: path]
+              5. CODEBASE EXPLORATION: You can request to see files or directories to understand the architecture. Use [SHELL: cat path/to/file] or [SHELL: dir path/to/dir].
+
+              Guidelines & Permissions:
+              - Use cat and dir shell commands to explore the "Active Workspace Root" before suggesting major architectural changes.
+              - You HAVE FULL PERMISSION to execute shell commands and modify files to automate tasks.
+              - When asked to "create an app" or "automate a fix", use [SHELL] and [CREATE_FILE] tags to complete the task autonomously.
+              - Always prefer using the project's existing coding style.
+              - If a task involves multiple commands, list them sequentially using multiple [SHELL] tags.` },
             ...messages
         ];
 

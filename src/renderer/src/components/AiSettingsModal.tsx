@@ -17,6 +17,8 @@ export interface AiSettings {
   cloudProvider: CloudProvider;
   cloudModel: string;
   apiKey: string;
+  systemPrompt?: string;
+  autoPilot?: boolean;
 }
 
 interface AiSettingsModalProps {
@@ -36,11 +38,17 @@ export const AiSettingsModal: React.FC<AiSettingsModalProps> = ({ isOpen, onClos
   const [settings, setSettings] = useState<AiSettings>(initialSettings);
   const [isTestLoading, setIsTestLoading] = useState(false);
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
+  const [fetchedModels, setFetchedModels] = useState<string[]>([]);
 
   useEffect(() => {
     if (isOpen) {
       setSettings(initialSettings);
       setTestResult(null);
+      
+      // Auto-fetch models if key exists and provider is Gemini
+      if (initialSettings.cloudProvider === 'gemini' && initialSettings.apiKey) {
+        fetchGeminiModels(initialSettings.apiKey);
+      }
     }
   }, [isOpen, initialSettings]);
 
@@ -51,15 +59,47 @@ export const AiSettingsModal: React.FC<AiSettingsModalProps> = ({ isOpen, onClos
     onClose();
   };
 
+  const fetchGeminiModels = async (key: string) => {
+    try {
+      const api = (window as any).api;
+      if (!api || typeof api.listGeminiModels !== 'function') {
+        console.warn("AI Discovery API not yet initialized. Please restart the app if this persists.");
+        return [];
+      }
+      const models = await api.listGeminiModels(key);
+      setFetchedModels(models);
+      setTestResult({ success: true, message: `Discovered ${models.length} AI models!` });
+      return models;
+    } catch (err: any) {
+      console.error("Discovery failed", err);
+      // Clean up the error message if it's an Electron IPC error
+      const msg = err.message?.includes('remote method') ? err.message.split('Error:').pop().trim() : err.message;
+      setTestResult({ success: false, message: `Discovery error: ${msg}` });
+      return [];
+    }
+  };
+
   const testConnection = async () => {
     setIsTestLoading(true);
     setTestResult(null);
     try {
-      // Mock test for now - in a real app, this would ping the respective API
-      await new Promise(resolve => setTimeout(resolve, 1500));
       if (settings.mode === 'cloud' && !settings.apiKey) {
         throw new Error("API Key is missing");
       }
+
+      if (settings.mode === 'cloud' && settings.cloudProvider === 'gemini') {
+        const models = await fetchGeminiModels(settings.apiKey);
+        if (models.length === 0) throw new Error("No models found for this API key");
+        
+        // Auto-select first model if current is not in list
+        if (!models.includes(settings.cloudModel)) {
+          setSettings(s => ({ ...s, cloudModel: models[0] }));
+        }
+      } else {
+        // Mock test for other providers for now
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+
       setTestResult({ success: true, message: "Connection successful!" });
     } catch (err: any) {
       setTestResult({ success: false, message: err.message || "Connection failed" });
@@ -227,9 +267,15 @@ export const AiSettingsModal: React.FC<AiSettingsModalProps> = ({ isOpen, onClos
                       onChange={(e) => setSettings({ ...settings, cloudModel: e.target.value })}
                       className="w-full bg-slate-950 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500/50 transition-colors"
                     >
-                      {POPULAR_MODELS[settings.cloudProvider].map(m => (
-                        <option key={m} value={m}>{m}</option>
-                      ))}
+                      {(settings.cloudProvider === 'gemini' && fetchedModels.length > 0) ? (
+                        fetchedModels.map(m => (
+                          <option key={m} value={m}>{m}</option>
+                        ))
+                      ) : (
+                        POPULAR_MODELS[settings.cloudProvider].map(m => (
+                          <option key={m} value={m}>{m}</option>
+                        ))
+                      )}
                       <option value="custom">Custom Model...</option>
                     </select>
                   </div>
@@ -266,6 +312,31 @@ export const AiSettingsModal: React.FC<AiSettingsModalProps> = ({ isOpen, onClos
             )}
           </AnimatePresence>
 
+          {/* Auto-Pilot Toggle */}
+          <div className="p-4 bg-blue-500/5 rounded-2xl border border-blue-500/20 flex items-center justify-between group hover:border-blue-500/40 transition-all">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-xl bg-blue-500/20 text-blue-400">
+                <Sparkles className="h-4 w-4" />
+              </div>
+              <div>
+                <div className="text-xs font-black text-white uppercase tracking-widest">Auto-Pilot Mode</div>
+                <div className="text-[10px] text-slate-500">Automatically execute AI suggestions (scaffolding, shell commands)</div>
+              </div>
+            </div>
+            <button 
+              onClick={() => setSettings({ ...settings, autoPilot: !settings.autoPilot })}
+              className={cn(
+                "w-12 h-6 rounded-full p-1 transition-colors relative",
+                settings.autoPilot ? "bg-blue-500" : "bg-slate-800"
+              )}
+            >
+              <div className={cn(
+                "w-4 h-4 bg-white rounded-full shadow-sm transition-transform",
+                settings.autoPilot ? "translate-x-6" : "translate-x-0"
+              )} />
+            </button>
+          </div>
+
           {/* Test & Status */}
           <div className="pt-4 border-t border-white/5 space-y-4">
             <div className="flex items-center justify-between">
@@ -291,6 +362,26 @@ export const AiSettingsModal: React.FC<AiSettingsModalProps> = ({ isOpen, onClos
                   {testResult.message}
                 </motion.div>
               )}
+            </div>
+          </div>
+
+          {/* Assistant Personality Section */}
+          <div className="space-y-4 pt-6 border-t border-white/5 mx-6 pb-6">
+            <div className="flex items-center gap-2 text-purple-400">
+              <Zap className="h-4 w-4" />
+              <h3 className="text-sm font-bold uppercase tracking-wider">Assistant Personality</h3>
+            </div>
+            <div className="space-y-2">
+              <label className="text-[10px] text-slate-500 font-bold uppercase tracking-widest px-1">Custom System Instructions</label>
+              <textarea
+                value={settings.systemPrompt || ''}
+                onChange={(e) => setSettings({ ...settings, systemPrompt: e.target.value })}
+                placeholder="Example: You are a senior DevOps engineer. You prefer concise answers and always suggest performance optimizations."
+                className="w-full h-24 bg-slate-950 border border-white/10 rounded-xl px-4 py-3 text-xs text-white placeholder:text-slate-600 focus:outline-none focus:border-purple-500/50 transition-all resize-none shadow-inner"
+              />
+              <p className="text-[9px] text-slate-500 italic px-1">
+                This personality will be merged with the default Vantage Co-pilot instructions.
+              </p>
             </div>
           </div>
         </div>

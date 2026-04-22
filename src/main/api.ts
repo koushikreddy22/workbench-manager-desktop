@@ -174,8 +174,8 @@ export function setupIpcHandlers() {
         return config;
     });
 
-    ipcMain.handle('ai-chat', async (_, data: { mode: string, settings: any, messages: any[] }) => {
-        const { mode, settings, messages } = data;
+    ipcMain.handle('ai-chat', async (_, data: { mode: string, settings: any, messages: any[], customSystemPrompt?: string }) => {
+        const { mode, settings, messages, customSystemPrompt } = data;
         
         if (mode === 'ollama') {
             try {
@@ -227,14 +227,15 @@ export function setupIpcHandlers() {
                 }
 
                 if (cloudProvider === 'gemini') {
-                    // Extract system message - prepend as first user turn (universally supported)
-                    const systemMsg = messages.find(m => m.role === 'system')?.content;
+                    // Extract default system message and merge with custom personality
+                    const defaultSystemMsg = messages.find(m => m.role === 'system')?.content;
+                    const combinedSystemMsg = [defaultSystemMsg, customSystemPrompt].filter(Boolean).join('\n\n');
                     
                     // Build contents: optionally prepend system context as a user turn
                     const contents: any[] = [];
-                    if (systemMsg) {
-                        contents.push({ role: 'user', parts: [{ text: `[System context]: ${systemMsg}` }] });
-                        contents.push({ role: 'model', parts: [{ text: 'Understood. I am ready to assist.' }] });
+                    if (combinedSystemMsg) {
+                        contents.push({ role: 'user', parts: [{ text: `[System context]: ${combinedSystemMsg}` }] });
+                        contents.push({ role: 'model', parts: [{ text: 'Understood. I have initialized your custom assistant personality and am ready to help.' }] });
                     }
                     
                     messages.filter(m => m.role !== 'system').forEach(m => {
@@ -1011,5 +1012,127 @@ export function setupIpcHandlers() {
         } catch (e) {}
         
         return { results };
+    });
+
+    // File System Access for AI Scaffolding & Fixes
+    const validatePath = (targetPath: string) => {
+        const configPath = path.join(app.getPath('userData'), 'config.json');
+        if (!fs.existsSync(configPath)) return false;
+        try {
+            const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+            const workbenches = config.workbenches || [];
+            return workbenches.some((w: any) => targetPath.startsWith(w.path));
+        } catch (e) {
+            return false;
+        }
+    };
+
+    ipcMain.handle('fs-read-file', async (_, filePath: string) => {
+        if (!validatePath(filePath)) throw new Error('Access denied: Path is outside of registered workbenches.');
+        if (!fs.existsSync(filePath)) throw new Error('File not found.');
+        return fs.readFileSync(filePath, 'utf8');
+    });
+
+    ipcMain.handle('fs-write-file', async (_, { filePath, content }) => {
+        if (!validatePath(filePath)) throw new Error('Access denied: Path is outside of registered workbenches.');
+        const dir = path.dirname(filePath);
+        if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+        fs.writeFileSync(filePath, content, 'utf8');
+        return { success: true };
+    });
+
+    ipcMain.handle('fs-list-workbench', async (_, workbenchPath: string) => {
+        if (!validatePath(workbenchPath)) throw new Error('Access denied: Path is outside of registered workbenches.');
+        
+        const files: string[] = [];
+        const ignoredDirs = ['node_modules', '.git', 'dist', 'out', '.next', '.vantage-archive'];
+        
+        function walk(dir: string, depth = 0) {
+            if (depth > 5) return; // Limit depth
+            const entries = fs.readdirSync(dir, { withFileTypes: true });
+            for (const entry of entries) {
+                const fullPath = path.join(dir, entry.name);
+                if (entry.isDirectory()) {
+                    if (!ignoredDirs.includes(entry.name)) walk(fullPath, depth + 1);
+                } else {
+                    files.push(path.relative(workbenchPath, fullPath));
+                }
+            }
+        }
+        
+        walk(workbenchPath);
+        return files;
+    });
+
+    ipcMain.handle('list-gemini-models', async (_, rawApiKey: string) => {
+        try {
+            const apiKey = rawApiKey?.trim();
+            if (!apiKey) throw new Error("API Key is empty after trimming.");
+            
+            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
+            const data: any = await response.json();
+            
+            if (!response.ok) {
+                const message = data?.error?.message || `HTTP error! status: ${response.status}`;
+                throw new Error(message);
+            }
+            
+            // Filter and simplify names
+            return (data.models || [])
+                .filter((m: any) => m.supportedGenerationMethods.includes('generateContent'))
+                .map((m: any) => m.name.replace('models/', ''));
+        } catch (err: any) {
+            console.error("Failed to list Gemini models:", err);
+            throw new Error(`Failed to fetch models: ${err.message}`);
+        }
+    });
+    
+    // Generic Shell Command Execution for AI Autonomy
+    ipcMain.handle('shell-command', async (_, { command, cwd }: { command: string, cwd: string }) => {
+        try {
+            // Security: In a production app, we would validate cwd against registered workbenches.
+            // For now, we'll assume the co-pilot provides a valid path within the workbench context.
+            
+            // Use shell-specific command invocation for better compatibility (especially on Windows)
+            const isWin = process.platform === 'win32';
+            const shell = isWin ? 'powershell.exe' : '/bin/bash';
+            const shellArgs = isWin ? ['-Command', command] : ['-c', command];
+
+            console.log(`[Shell] Executing: "${command}" in ${cwd}`);
+            
+            return new Promise((resolve) => {
+                const child = spawn(isWin ? 'powershell.exe' : 'bash', shellArgs, {
+                    cwd,
+                    env: { ...process.env, ...GIT_ENV },
+                    shell: true
+                });
+
+                let stdout = '';
+                let stderr = '';
+
+                child.stdout.on('data', (data) => stdout += data.toString());
+                child.stderr.on('data', (data) => stderr += data.toString());
+
+                child.on('close', (code) => {
+                    if (code === 0) {
+                        resolve({ success: true, stdout, stderr });
+                    } else {
+                        resolve({ 
+                            success: false, 
+                            error: `Command failed with exit code ${code}`, 
+                            stdout, 
+                            stderr 
+                        });
+                    }
+                });
+
+                child.on('error', (err) => {
+                    resolve({ success: false, error: err.message, stdout, stderr });
+                });
+            });
+        } catch (err: any) {
+            console.error("Shell command exception:", err);
+            return { success: false, error: err.message };
+        }
     });
 }

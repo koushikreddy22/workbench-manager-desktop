@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
+import { Trash2, Copy, RotateCw, X } from 'lucide-react';
 import '@xterm/xterm/css/xterm.css';
 
 interface TerminalComponentProps {
@@ -89,9 +90,51 @@ export const TerminalComponent: React.FC<TerminalComponentProps> = ({ id, cwd, o
     }, [id, cwd, onClose]);
 
     return (
-        <div
-            ref={terminalRef}
-            className="w-full h-full bg-[#1e1e1e] rounded-b-xl overflow-hidden p-2"
-        />
+        <div className="flex flex-col w-full h-full bg-[#1e1e1e] rounded-xl overflow-hidden border border-slate-800 shadow-2xl">
+            <div className="flex items-center justify-between px-4 py-2 bg-slate-900 border-b border-slate-800/80">
+                <div className="flex items-center gap-2">
+                    <div className="flex gap-1.5">
+                        <div className="w-2.5 h-2.5 rounded-full bg-red-500/50" />
+                        <div className="w-2.5 h-2.5 rounded-full bg-amber-500/50" />
+                        <div className="w-2.5 h-2.5 rounded-full bg-emerald-500/50" />
+                    </div>
+                    <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-2">Terminal Registry</span>
+                </div>
+                <div className="flex items-center gap-1">
+                    <button 
+                        onClick={() => xtermRef.current?.clear()}
+                        className="p-1.5 text-slate-500 hover:text-white hover:bg-slate-800 rounded transition-all"
+                        title="Clear Buffer"
+                    >
+                        <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                    <button 
+                        className="p-1.5 text-slate-500 hover:text-white hover:bg-slate-800 rounded transition-all"
+                        title="Copy All"
+                    >
+                        <Copy className="h-3.5 w-3.5" />
+                    </button>
+                    <button 
+                        onClick={() => window.location.reload()}
+                        className="p-1.5 text-slate-500 hover:text-white hover:bg-slate-800 rounded transition-all"
+                        title="Restart Session"
+                    >
+                        <RotateCw className="h-3.5 w-3.5" />
+                    </button>
+                    {onClose && (
+                        <button 
+                            onClick={onClose}
+                            className="p-1.5 text-slate-500 hover:text-red-400 hover:bg-red-400/10 rounded transition-all ml-1"
+                        >
+                            <X className="h-3.5 w-3.5" />
+                        </button>
+                    )}
+                </div>
+            </div>
+            <div
+                ref={terminalRef}
+                className="flex-1 w-full p-2"
+            />
+        </div>
     );
 };

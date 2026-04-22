@@ -59,7 +59,14 @@ const api = {
   },
   offTerminalExit: (id: string) => {
     ipcRenderer.removeAllListeners(`terminal-exit-${id}`);
-  }
+  },
+
+  // File System Access
+  fsReadFile: (path: string) => ipcRenderer.invoke('fs-read-file', path),
+  fsWriteFile: (data: { filePath: string, content: string }) => ipcRenderer.invoke('fs-write-file', data),
+  fsListWorkbench: (path: string) => ipcRenderer.invoke('fs-list-workbench', path),
+  listGeminiModels: (apiKey: string) => ipcRenderer.invoke('list-gemini-models', apiKey),
+  shellCommand: (data: { command: string, cwd: string }) => ipcRenderer.invoke('shell-command', data)
 }
 
 // Use `contextBridge` APIs to expose Electron APIs to
