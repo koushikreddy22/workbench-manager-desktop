@@ -1,4 +1,4 @@
-import { ipcMain, dialog, app } from 'electron';
+import { ipcMain, dialog, app, BrowserWindow } from 'electron';
 import fs from 'fs';
 const path = require('path');
 import { spawn, exec } from 'child_process';
@@ -172,6 +172,71 @@ export function setupIpcHandlers() {
         config = { ...config, ...newConfig };
         fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
         return config;
+    });
+
+    ipcMain.handle('export-config', async () => {
+        const userDataPath = app.getPath('userData');
+        const files = ['config.json', 'localDB.json', 'service-configs.json', 'environments.json'];
+        const bundle: any = { version: '1.0.0', exportedAt: Date.now(), data: {} };
+
+        for (const file of files) {
+            const p = path.join(userDataPath, file);
+            if (fs.existsSync(p)) {
+                try { bundle.data[file] = JSON.parse(fs.readFileSync(p, 'utf8')); } catch (e) { }
+            }
+        }
+
+        const dateStr = new Date().toISOString().split('T')[0];
+        const result = await dialog.showSaveDialog({
+            title: 'Export Vantage Configuration',
+            defaultPath: `vantage_backup_${dateStr}.vantage`,
+            filters: [{ name: 'Vantage Backup', extensions: ['vantage'] }]
+        });
+
+        if (!result.canceled && result.filePath) {
+            fs.writeFileSync(result.filePath, JSON.stringify(bundle, null, 2));
+            return { success: true, path: result.filePath };
+        }
+        return { success: false };
+    });
+
+    ipcMain.handle('import-config', async () => {
+        const result = await dialog.showOpenDialog({
+            title: 'Import Vantage Configuration',
+            filters: [{ name: 'Vantage Backup', extensions: ['vantage'] }],
+            properties: ['openFile']
+        });
+
+        if (result.canceled || result.filePaths.length === 0) return { success: false };
+
+        try {
+            const raw = fs.readFileSync(result.filePaths[0], 'utf8');
+            const bundle = JSON.parse(raw);
+
+            if (!bundle.data || typeof bundle.data !== 'object') throw new Error("Invalid backup format");
+
+            const confirm = await dialog.showMessageBox({
+                type: 'question',
+                buttons: ['Cancel', 'Import & Relaunch'],
+                title: 'Confirm Import',
+                message: 'All current settings, workbenches, and clusters will be overwritten. The app will relaunch to apply changes.',
+                defaultId: 0
+            });
+
+            if (confirm.response === 1) {
+                const userDataPath = app.getPath('userData');
+                for (const [filename, content] of Object.entries(bundle.data)) {
+                    const p = path.join(userDataPath, filename);
+                    fs.writeFileSync(p, JSON.stringify(content, null, 2));
+                }
+                app.relaunch();
+                app.quit();
+                return { success: true };
+            }
+        } catch (e: any) {
+            dialog.showErrorBox('Import Failed', e.message || 'The configuration file is invalid.');
+        }
+        return { success: false };
     });
 
     ipcMain.handle('ai-chat', async (_, data: { mode: string, settings: any, messages: any[], customSystemPrompt?: string }) => {

@@ -4,24 +4,40 @@ import {
   Sparkles, X, Send, User, Bot, 
   Trash2, Maximize2, Minimize2,
   Play, Square, RefreshCcw, Database, ShieldCheck,
-  Terminal, Zap, Loader2, AlertCircle, CheckCircle2
+  Terminal, Zap, Loader2, AlertCircle, CheckCircle2,
+  Plus, History, MessageSquare
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { ChatMessage } from '../lib/ai-orchestrator';
 
-interface AiChatbotProps {
+interface Conversation {
+  id: string;
+  title: string;
   messages: ChatMessage[];
+  updatedAt: number;
+}
+
+interface AiChatbotProps {
+  conversations: Conversation[];
+  activeConversationId: string | null;
   onSendMessage: (content: string) => void;
+  onNewChat: () => void;
+  onSwitchChat: (id: string) => void;
+  onDeleteChat: (id: string) => void;
   onClearHistory: () => void;
   onExecuteAction: (intent: string, service: string) => void;
   isProcessing: boolean;
   workbenchPath?: string | null;
-  settings: any; // We'll use any for now to avoid circular import or just pass the needed parts
+  settings: any;
 }
 
 export const AiChatbot: React.FC<AiChatbotProps> = ({ 
-  messages, 
+  conversations,
+  activeConversationId,
   onSendMessage, 
+  onNewChat,
+  onSwitchChat,
+  onDeleteChat,
   onClearHistory, 
   onExecuteAction,
   isProcessing,
@@ -30,7 +46,11 @@ export const AiChatbot: React.FC<AiChatbotProps> = ({
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [input, setInput] = useState('');
+  
+  const activeConv = conversations.find(c => c.id === activeConversationId);
+  const messages = activeConv?.messages || [];
   const [shellExecuting, setShellExecuting] = useState<string | null>(null);
   const [autoExecutedActions] = useState(new Set<string>());
   const [executionResults, setExecutionResults] = useState<Record<string, { success: boolean, error?: string }>>({});
@@ -314,37 +334,100 @@ export const AiChatbot: React.FC<AiChatbotProps> = ({
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.9 }}
             className={cn(
-              "w-[400px] bg-slate-900 border border-white/10 rounded-3xl shadow-2xl overflow-hidden flex flex-col transition-all duration-300",
-              isMinimized ? "h-[60px]" : "h-[600px] max-h-[80vh]"
+              "w-[400px] bg-slate-900 border border-white/10 rounded-3xl shadow-2xl overflow-hidden flex flex-col transition-all duration-300 relative",
+              isMinimized ? "h-[60px]" : "h-[600px] max-h-[80vh]",
+              isHistoryOpen && !isMinimized && "w-[650px]" 
             )}
           >
-            {/* Header */}
-            <div className="p-4 bg-gradient-to-r from-purple-500/10 to-cyan-500/10 border-b border-white/5 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-xl bg-purple-500/20 border border-purple-500/30">
-                  <Sparkles className="h-4 w-4 text-purple-400" />
+            {/* History Sidebar */}
+            {!isMinimized && isHistoryOpen && (
+              <div className="absolute left-0 top-0 bottom-0 w-64 bg-slate-950 border-r border-white/5 z-20 flex flex-col animate-in slide-in-from-left duration-300">
+                <div className="p-4 border-b border-white/5 flex items-center justify-between">
+                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Conversation Vault</span>
+                  <button onClick={() => setIsHistoryOpen(false)} className="text-slate-500 hover:text-white">
+                    <History className="h-4 w-4" />
+                  </button>
                 </div>
+                <div className="flex-1 overflow-y-auto p-2 space-y-1 custom-scrollbar">
+                  {conversations.sort((a, b) => b.updatedAt - a.updatedAt).map(conv => (
+                    <div 
+                      key={conv.id}
+                      className={cn(
+                        "group/conv flex items-center justify-between p-3 rounded-xl transition-all cursor-pointer",
+                        activeConversationId === conv.id ? "bg-purple-500/10 border border-purple-500/20" : "hover:bg-white/5"
+                      )}
+                      onClick={() => onSwitchChat(conv.id)}
+                    >
+                      <div className="flex items-center gap-3 overflow-hidden">
+                        <MessageSquare className={cn("h-4 w-4 shrink-0", activeConversationId === conv.id ? "text-purple-400" : "text-slate-500")} />
+                        <span className={cn("text-xs truncate", activeConversationId === conv.id ? "text-purple-300 font-bold" : "text-slate-400")}>
+                          {conv.title}
+                        </span>
+                      </div>
+                      <button 
+                        onClick={(e) => { e.stopPropagation(); onDeleteChat(conv.id); }}
+                        className="opacity-0 group-hover/conv:opacity-100 p-1 hover:text-red-400 transition-all"
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </button>
+                    </div>
+                  ))}
+                  {conversations.length === 0 && (
+                    <div className="text-center py-10 opacity-30 italic text-[10px]">No history found.</div>
+                  )}
+                </div>
+                <div className="p-4 border-t border-white/5">
+                  <button 
+                    onClick={onClearHistory}
+                    className="w-full flex items-center justify-center gap-2 py-2 text-[10px] font-black text-red-400/60 hover:text-red-400 hover:bg-red-950/20 rounded-xl border border-dashed border-red-500/20 transition-all"
+                  >
+                    <Trash2 className="h-3 w-3" /> Clear All Vaults
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Header */}
+            <div className={cn(
+              "p-4 bg-gradient-to-r from-purple-500/10 to-cyan-500/10 border-b border-white/5 flex items-center justify-between transition-all",
+              isHistoryOpen && !isMinimized && "ml-64"
+            )}>
+              <div className="flex items-center gap-3">
+                <button 
+                  onClick={() => setIsHistoryOpen(!isHistoryOpen)}
+                  className={cn(
+                    "p-2 rounded-xl transition-all",
+                    isHistoryOpen ? "bg-purple-500 text-white" : "bg-purple-500/20 border border-purple-500/30 text-purple-400 hover:bg-purple-500/30"
+                  )}
+                  title="History"
+                >
+                  <History className="h-4 w-4" />
+                </button>
                 <div>
                   <h3 className="text-sm font-black text-white italic">VANTAGE CO-PILOT</h3>
                   <div className="flex items-center gap-1.5">
                     <div className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                    <span className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Active Insight</span>
+                    <span className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">
+                      {activeConv ? activeConv.title : "Active Insight"}
+                    </span>
                   </div>
                 </div>
               </div>
               <div className="flex items-center gap-1">
                 <button 
+                  onClick={onNewChat}
+                  className="p-1.5 hover:bg-white/5 rounded-lg text-slate-400 hover:text-cyan-400 flex items-center gap-2"
+                  title="New Chat"
+                >
+                  <Plus className="h-4 w-4" />
+                  {!isMinimized && !isHistoryOpen && <span className="text-[10px] font-black uppercase pr-1">New Chat</span>}
+                </button>
+                <div className="w-px h-4 bg-white/10 mx-1" />
+                <button 
                   onClick={() => setIsMinimized(!isMinimized)}
                   className="p-1.5 hover:bg-white/5 rounded-lg text-slate-400"
                 >
                   {isMinimized ? <Maximize2 className="h-4 w-4" /> : <Minimize2 className="h-4 w-4" />}
-                </button>
-                <button 
-                  onClick={onClearHistory}
-                  className="p-1.5 hover:bg-red-500/20 rounded-lg text-slate-400 hover:text-red-400"
-                  title="Clear History"
-                >
-                  <Trash2 className="h-4 w-4" />
                 </button>
                 <button 
                   onClick={() => setIsOpen(false)}
@@ -360,7 +443,10 @@ export const AiChatbot: React.FC<AiChatbotProps> = ({
               <>
                 <div 
                   ref={scrollRef}
-                  className="flex-1 overflow-y-auto p-6 space-y-6 scrollbar-hide bg-slate-900/50"
+                  className={cn(
+                    "flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar bg-slate-900/50 transition-all",
+                    isHistoryOpen ? "ml-64" : ""
+                  )}
                 >
                   {messages.length === 0 && (
                     <div className="h-full flex flex-col items-center justify-center text-center space-y-4 opacity-50">
@@ -418,7 +504,10 @@ export const AiChatbot: React.FC<AiChatbotProps> = ({
                 {/* Input Area */}
                 <form 
                   onSubmit={handleSubmit}
-                  className="p-4 bg-slate-950/50 border-t border-white/5"
+                  className={cn(
+                    "p-4 bg-slate-950/50 border-t border-white/5 transition-all",
+                    isHistoryOpen ? "ml-64" : ""
+                  )}
                 >
                   <div className="relative group">
                     <div className="absolute inset-0 bg-purple-500/10 rounded-2xl blur opacity-0 group-focus-within:opacity-100 transition-opacity" />

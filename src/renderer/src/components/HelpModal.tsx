@@ -1,4 +1,4 @@
-import { X, BookOpen, Rocket, Play, Settings, GitBranch, Terminal, FolderOpen, LayoutGrid, Wrench, Code, Shield, Copy } from "lucide-react";
+import { X, BookOpen, Rocket, Play, Settings, GitBranch, Terminal, FolderOpen, LayoutGrid, Wrench, Code, Shield, Copy, Download, Upload, RefreshCcw } from "lucide-react";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 
@@ -6,10 +6,12 @@ interface HelpModalProps {
     isOpen: boolean;
     onClose: () => void;
     onReset: () => void;
+    onExport: () => void;
+    onImport: () => void;
 }
 
-export function HelpModal({ isOpen, onClose, onReset }: HelpModalProps) {
-    const [activeTab, setActiveTab] = useState<'basics' | 'services' | 'clusters' | 'git' | 'danger'>('basics');
+export function HelpModal({ isOpen, onClose, onReset, onExport, onImport }: HelpModalProps) {
+    const [activeTab, setActiveTab] = useState<'basics' | 'services' | 'clusters' | 'git' | 'system'>('basics');
     const [isVisible, setIsVisible] = useState(false);
 
     useEffect(() => {
@@ -31,7 +33,7 @@ export function HelpModal({ isOpen, onClose, onReset }: HelpModalProps) {
         { id: 'services', label: 'Managing Services', icon: Terminal },
         { id: 'git', label: 'Git & Source', icon: GitBranch },
         { id: 'clusters', label: 'Project Clusters', icon: LayoutGrid },
-        { id: 'danger', label: 'Reset App', icon: Settings },
+        { id: 'system', label: 'System & Maintenance', icon: Settings },
     ] as const;
 
     return createPortal(
@@ -280,25 +282,62 @@ export function HelpModal({ isOpen, onClose, onReset }: HelpModalProps) {
                                 </div>
                             )}
 
-                            {activeTab === 'danger' && (
+                            {activeTab === 'system' && (
                                 <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
-                                    <h3 className="text-xl font-bold border-b border-red-800/60 pb-2 text-white flex items-center gap-2"><Settings className="h-5 w-5 text-red-500" /> Danger Zone</h3>
-
-                                    <div className="bg-red-500/10 p-6 rounded-2xl border border-red-500/20">
-                                        <h4 className="font-bold text-red-400 text-lg mb-2 text-center uppercase tracking-widest">Master Reset</h4>
-                                        <p className="text-sm text-slate-300 mb-8 text-center leading-relaxed">
-                                            This will permanently delete all your workspace configurations, project clusters, environment profiles, and custom service settings.
-                                            <strong> The app will relaunch automatically after reset.</strong>
-                                        </p>
-
-                                        <div className="flex justify-center">
-                                            <button
-                                                onClick={onReset}
-                                                className="px-8 py-4 rounded-xl bg-red-600 hover:bg-red-500 text-white font-black text-sm shadow-xl shadow-red-600/20 transition-all hover:scale-105 active:scale-95 uppercase tracking-widest flex items-center gap-3"
+                                    <h3 className="text-xl font-bold border-b border-slate-800 pb-2 text-white flex items-center gap-2"><Settings className="h-5 w-5 text-cyan-500" /> System & Maintenance</h3>
+                                    
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                        <div className="bg-slate-800/30 p-5 rounded-2xl border border-slate-700/50 flex flex-col items-center justify-between text-center group hover:border-cyan-500/30 transition-all">
+                                            <div>
+                                                <div className="h-12 w-12 rounded-xl bg-cyan-500/10 flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition-transform">
+                                                    <Download className="h-6 w-6 text-cyan-400" />
+                                                </div>
+                                                <h4 className="font-bold text-white mb-2">Export Configuration</h4>
+                                                <p className="text-[10px] text-slate-400 leading-relaxed px-4">Save all workbenches, clusters, and AI settings to a portable <code className="text-cyan-500">.vantage</code> file.</p>
+                                            </div>
+                                            <button 
+                                                onClick={onExport}
+                                                className="mt-6 w-full py-2.5 rounded-xl bg-slate-800 hover:bg-cyan-600 text-white text-[10px] font-black uppercase tracking-widest transition-all border border-slate-700 hover:border-cyan-500 shadow-lg"
                                             >
-                                                <X className="h-5 w-5 stroke-[3px]" />
-                                                Reset Everything
+                                                Generate Backup
                                             </button>
+                                        </div>
+
+                                        <div className="bg-slate-800/30 p-5 rounded-2xl border border-slate-700/50 flex flex-col items-center justify-between text-center group hover:border-purple-500/30 transition-all">
+                                            <div>
+                                                <div className="h-12 w-12 rounded-xl bg-purple-500/10 flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition-transform">
+                                                    <Upload className="h-6 w-6 text-purple-400" />
+                                                </div>
+                                                <h4 className="font-bold text-white mb-2">Restore Configuration</h4>
+                                                <p className="text-[10px] text-slate-400 leading-relaxed px-4">Restore your entire dashboard from a previous backup. This will overwrite local data.</p>
+                                            </div>
+                                            <button 
+                                                onClick={onImport}
+                                                className="mt-6 w-full py-2.5 rounded-xl bg-slate-800 hover:bg-purple-600 text-white text-[10px] font-black uppercase tracking-widest transition-all border border-slate-700 hover:border-purple-500 shadow-lg"
+                                            >
+                                                Restore from File
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <div className="pt-8 mt-4 border-t border-slate-800/60">
+                                        <div className="bg-red-500/10 p-6 rounded-2xl border border-red-500/20">
+                                            <h4 className="font-bold text-red-400 text-sm mb-2 text-center uppercase tracking-widest flex items-center justify-center gap-2">
+                                                <RefreshCcw className="h-4 w-4" /> Master Reset
+                                            </h4>
+                                            <p className="text-[10px] text-slate-400 mb-6 text-center leading-relaxed">
+                                                Permanently wipe all data. Use this for a fresh installation.
+                                            </p>
+
+                                            <div className="flex justify-center">
+                                                <button
+                                                    onClick={onReset}
+                                                    className="px-6 py-3 rounded-lg bg-red-600/20 hover:bg-red-600 text-red-500 hover:text-white font-black text-[10px] border border-red-500/30 transition-all uppercase tracking-widest flex items-center gap-2"
+                                                >
+                                                    <X className="h-4 w-4" />
+                                                    Wipe Everything
+                                                </button>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>

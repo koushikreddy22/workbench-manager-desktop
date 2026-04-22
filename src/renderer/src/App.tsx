@@ -18,7 +18,7 @@ import { NetworkMap } from "./components/NetworkMap";
 import { AiSettingsModal, AiSettings } from './components/AiSettingsModal';
 import { AiChatbot } from "./components/AiChatbot";
 import { AiOrchestrator, ChatMessage } from "./lib/ai-orchestrator";
-import { Sparkles, X, Loader2, RefreshCw, FolderOpen, Plus, Code, LayoutGrid, List, Search, HelpCircle, Shield, Copy, Link, ChevronDown, Github, Terminal, Check } from "lucide-react";
+import { Sparkles, X, Loader2, RefreshCw, FolderOpen, Plus, Code, LayoutGrid, List, Search, HelpCircle, Shield, Copy, Link, ChevronDown, Github, Terminal, Check, History, MessageSquare } from "lucide-react";
 import { cn } from "./lib/utils";
 import logo from "../../../build/icon.png";
 import { useRef } from "react";
@@ -54,6 +54,13 @@ interface Workbench {
   id: string;
   name: string;
   path: string;
+}
+
+interface Conversation {
+  id: string;
+  title: string;
+  messages: ChatMessage[];
+  updatedAt: number;
 }
 
 function App() {
@@ -119,7 +126,9 @@ function App() {
   const [healthReport, setHealthReport] = useState<string | null>(null);
   const [isNetworkMapOpen, setIsNetworkMapOpen] = useState(false);
   const [isAiProcessing, setIsAiProcessing] = useState(false);
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   const [isBotProcessing, setIsBotProcessing] = useState(false);
   const gitMenuRef = useRef<HTMLDivElement>(null);
 
@@ -191,8 +200,19 @@ function App() {
       if (config.aiSettings) {
         setAiSettings(config.aiSettings);
       }
-      if (config.chatMessages) {
-        setChatMessages(config.chatMessages);
+      if (config.conversations) {
+        setConversations(config.conversations);
+        setActiveConversationId(config.activeConversationId || null);
+      } else if (config.chatMessages) {
+        // Migration: Wrap old chat in a conversation
+        const legacyConv = {
+          id: 'legacy',
+          title: 'Legacy Chat',
+          messages: config.chatMessages.map((m: any) => ({ ...m, timestamp: m.timestamp || Date.now() })),
+          updatedAt: Date.now()
+        };
+        setConversations([legacyConv]);
+        setActiveConversationId('legacy');
       }
     } catch (err: any) {
       console.error("Failed to load config:", err);
@@ -551,31 +571,120 @@ function App() {
   };
 
   const handleSendMessage = async (content: string) => {
-    const newUserMsg: ChatMessage = { role: 'user', content };
-    const updatedMessages = [...chatMessages, newUserMsg];
-    setChatMessages(updatedMessages);
+    let currentConvId = activeConversationId;
+    let currentMessages: ChatMessage[] = [];
+    let updatedConversations = [...conversations];
+
+    if (!currentConvId) {
+      // Auto-create chat if none active
+      const newId = crypto.randomUUID();
+      const newConv: Conversation = {
+        id: newId,
+        title: content.slice(0, 30) + (content.length > 30 ? '...' : ''),
+        messages: [],
+        updatedAt: Date.now()
+      };
+      updatedConversations.push(newConv);
+      currentConvId = newId;
+      setActiveConversationId(newId);
+    }
+
+    const convIndex = updatedConversations.findIndex(c => c.id === currentConvId);
+    if (convIndex >= 0) {
+      currentMessages = [...updatedConversations[convIndex].messages];
+    }
+
+    const newUserMsg: ChatMessage = { role: 'user', content, timestamp: Date.now() };
+    const messagesWithUser = [...currentMessages, newUserMsg];
+    
+    // Optimistically update
+    if (convIndex >= 0) {
+      updatedConversations[convIndex].messages = messagesWithUser;
+      updatedConversations[convIndex].updatedAt = Date.now();
+      // Auto-update title if it's the first message and generic
+      if (updatedConversations[convIndex].messages.length === 1) {
+        updatedConversations[convIndex].title = content.slice(0, 30) + (content.length > 30 ? '...' : '');
+      }
+      setConversations(updatedConversations);
+    }
+
     setIsBotProcessing(true);
 
     try {
-      // Gather context
       const systemContext = services.map(s => 
         `${s.name} (${s.status})${s.port ? ` at port ${s.port}` : ''}`
       ).join(', ');
 
-      const response = await AiOrchestrator.chat(updatedMessages, aiSettings, systemContext, activeWorkbench?.path);
+      const response = await AiOrchestrator.chat(messagesWithUser, aiSettings, systemContext, activeWorkbench?.path);
       
-      const newBotMsg: ChatMessage = { role: 'assistant', content: response };
-      const finalMessages = [...updatedMessages, newBotMsg];
-      setChatMessages(finalMessages);
+      const newBotMsg: ChatMessage = { role: 'assistant', content: response, timestamp: Date.now() };
+      const finalMsgList = [...messagesWithUser, newBotMsg];
+
+      setConversations(prev => {
+        const next = [...prev];
+        const idx = next.findIndex(c => c.id === currentConvId);
+        if (idx >= 0) {
+          next[idx].messages = finalMsgList;
+          next[idx].updatedAt = Date.now();
+        }
+        // Persist to backend asynchronously
+        window.api.updateConfig({ 
+          conversations: next,
+          activeConversationId: currentConvId 
+        });
+        return next;
+      });
       
-      // Persist
-      await window.api.updateConfig({ chatMessages: finalMessages });
     } catch (err: any) {
       console.error("Chat failed:", err);
-      setChatMessages(prev => [...prev, { role: 'assistant', content: `⚠️ Error: ${err.message}` }]);
+      // Handle error in active messages
     } finally {
       setIsBotProcessing(false);
     }
+  };
+
+  const handleNewChat = () => {
+    const newId = crypto.randomUUID();
+    const newConv: Conversation = {
+      id: newId,
+      title: "New Conversation",
+      messages: [],
+      updatedAt: Date.now()
+    };
+    const newConvs = [newConv, ...conversations];
+    setConversations(newConvs);
+    setActiveConversationId(newId);
+    window.api.updateConfig({ conversations: newConvs, activeConversationId: newId });
+  };
+
+  const handleDeleteChat = async (id: string) => {
+    const nextConvs = conversations.filter(c => c.id !== id);
+    setConversations(nextConvs);
+    if (activeConversationId === id) {
+      setActiveConversationId(nextConvs.length > 0 ? nextConvs[0].id : null);
+    }
+    window.api.updateConfig({ 
+      conversations: nextConvs, 
+      activeConversationId: activeConversationId === id ? (nextConvs.length > 0 ? nextConvs[0].id : null) : activeConversationId 
+    });
+  };
+
+  const handleClearChatHistory = async () => {
+      setConversations([]);
+      setActiveConversationId(null);
+      await window.api.updateConfig({ conversations: [], activeConversationId: null });
+  };
+
+  const handleExportConfig = async () => {
+    const result = await window.api.exportConfig();
+    if (result.success) {
+      alert(`Configuration exported successfully to: ${result.path}`);
+    }
+  };
+
+  const handleImportConfig = async () => {
+    await window.api.importConfig();
+    // App will relaunch on success via main process
   };
 
   const handleBotAction = async (intent: string, serviceName: string) => {
@@ -599,10 +708,7 @@ function App() {
           customCommand 
         });
         
-        setChatMessages(prev => [...prev, { 
-          role: 'assistant', 
-          content: `✅ Executed ${intent} for **${service.name}**.` 
-        }]);
+        notifyAssistant(`✅ Executed ${intent} for **${service!.name}**.`);
         
         fetchData();
       }
@@ -618,24 +724,28 @@ function App() {
           const content = contentParts.join('|'); // Rejoin in case content had pipes
           
           // Construct full path
-          // We'll use a simple slash joining since it's verified in main process validatePath
           const fullPath = activeWorkbench.path + (activeWorkbench.path.endsWith('\\') || activeWorkbench.path.endsWith('/') ? '' : '/') + relPath;
           
           await window.api.fsWriteFile({ filePath: fullPath, content });
           
-          setChatMessages(prev => [...prev, { 
-            role: 'assistant', 
-            content: `✅ Successfully ${intent === 'create-file' ? 'created' : 'applied fix to'} \`${relPath}\`.` 
-          }]);
+          notifyAssistant(`✅ Successfully ${intent === 'create-file' ? 'created' : 'applied fix to'} \`${relPath}\`.`);
        } catch (err: any) {
           alert(`File action failed: ${err.message}`);
        }
     }
   };
 
-  const handleClearChatHistory = async () => {
-    setChatMessages([]);
-    await window.api.updateConfig({ chatMessages: [] });
+  const notifyAssistant = (text: string) => {
+    setConversations(prev => {
+      const next = [...prev];
+      const idx = next.findIndex(c => c.id === activeConversationId);
+      if (idx >= 0) {
+        next[idx].messages = [...next[idx].messages, { role: 'assistant', content: text, timestamp: Date.now() }];
+        next[idx].updatedAt = Date.now();
+        window.api.updateConfig({ conversations: next });
+      }
+      return next;
+    });
   };
 
   const handleGroupAction = async (groupId: string, action: "start" | "stop") => {
@@ -1140,6 +1250,8 @@ function App() {
         isOpen={isHelpModalOpen}
         onClose={() => setIsHelpModalOpen(false)}
         onReset={() => window.api.resetApp()}
+        onExport={handleExportConfig}
+        onImport={handleImportConfig}
       />
 
       <ArchivedServicesModal
@@ -1265,8 +1377,12 @@ function App() {
         }}
       />
       <AiChatbot 
-        messages={chatMessages}
+        conversations={conversations}
+        activeConversationId={activeConversationId}
         onSendMessage={handleSendMessage}
+        onNewChat={handleNewChat}
+        onSwitchChat={setActiveConversationId}
+        onDeleteChat={handleDeleteChat}
         onClearHistory={handleClearChatHistory}
         onExecuteAction={handleBotAction}
         isProcessing={isBotProcessing}

@@ -50,6 +50,14 @@ declare global {
       onTerminalExit: (id: string, callback: () => void) => void
       offTerminalOutput: (id: string) => void
       offTerminalExit: (id: string) => void
+      fsReadFile: (path: string) => Promise<any>
+      fsWriteFile: (data: { filePath: string, content: string }) => Promise<any>
+      fsListWorkbench: (path: string) => Promise<string[]>
+      listGeminiModels: (apiKey: string) => Promise<any>
+      shellCommand: (data: { command: string, cwd: string }) => Promise<any>
+      aiChat: (data: any) => Promise<any>
+      exportConfig: () => Promise<{ success: boolean, path?: string, error?: string }>
+      importConfig: () => Promise<{ success: boolean, error?: string }>
     }
   }
 }

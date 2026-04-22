@@ -9,6 +9,7 @@ export interface DiagnosisResult {
 export interface ChatMessage {
     role: 'user' | 'assistant' | 'system';
     content: string;
+    timestamp: number;
 }
 
 declare global {
@@ -76,7 +77,7 @@ export class AiOrchestrator {
         }
 
         const fullHistory: ChatMessage[] = [
-            { role: 'system', content: `You are Vantage Co-pilot, an expert senior developer assistant. 
+            { role: 'system', timestamp: Date.now(), content: `You are Vantage Co-pilot, an expert senior developer assistant. 
               
               Current Context:
               - Active Workspace Root: ${workbenchPath}

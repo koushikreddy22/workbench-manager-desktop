@@ -66,7 +66,9 @@ const api = {
   fsWriteFile: (data: { filePath: string, content: string }) => ipcRenderer.invoke('fs-write-file', data),
   fsListWorkbench: (path: string) => ipcRenderer.invoke('fs-list-workbench', path),
   listGeminiModels: (apiKey: string) => ipcRenderer.invoke('list-gemini-models', apiKey),
-  shellCommand: (data: { command: string, cwd: string }) => ipcRenderer.invoke('shell-command', data)
+  shellCommand: (data: { command: string, cwd: string }) => ipcRenderer.invoke('shell-command', data),
+  exportConfig: () => ipcRenderer.invoke('export-config'),
+  importConfig: () => ipcRenderer.invoke('import-config')
 }
 
 // Use `contextBridge` APIs to expose Electron APIs to
