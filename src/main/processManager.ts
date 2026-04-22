@@ -1,5 +1,9 @@
 import { ChildProcess, spawn } from 'child_process';
 import pidusage from 'pidusage';
+import { exec } from 'child_process';
+import util from 'util';
+
+const execAsync = util.promisify(exec);
 
 export interface ServiceStats {
     cpu: number;
@@ -13,31 +17,155 @@ export class ProcessManager {
     private status: Map<string, "stopped" | "starting" | "running" | "error" | "building" | "installing" | "build-error" | "install-error"> = new Map();
     private modes: Map<string, "dev" | "prod" | null> = new Map();
     private stats: Map<string, ServiceStats> = new Map();
+    private privateMemMap: Map<number, number> = new Map(); // pid -> private memory bytes
     private MAX_LOG_LINES = 1000;
     private statsInterval: NodeJS.Timeout | null = null;
+    private telemetryProcess: ChildProcess | null = null;
+    private gitData: Map<string, { branch: string, status: { ahead: number, behind: number, hasLocalChanges: boolean } }> = new Map();
+    private gitPollingTimeout: NodeJS.Timeout | null = null;
+    private gitProcess: ChildProcess | null = null;
+    private currentWorkbenchPath: string | null = null;
+
 
     constructor() {
         this.startStatsPolling();
     }
 
     private startStatsPolling() {
-        if (this.statsInterval) return;
-        this.statsInterval = setInterval(async () => {
+        const poll = async () => {
+            // Keep a lock to ensure we don't start multiple polls if the timer triggers weirdly
+            if (this.statsInterval === null && this.telemetryProcess) return; 
+
+            // 1. Fetch entire process map once per tick (Efficient O(N) operation)
+            const globalProcessMap = await this.getSystemProcessMap();
+            
+            // Safety: If the map is completely empty, it means the check timed out or failed.
+            // In this case, do NOT overwrite the existing stats with 0MB. Keep the previous reading.
+            if (globalProcessMap.size === 0 && this.privateMemMap.size === 0) return;
+
             for (const [key, child] of this.processes.entries()) {
-                if (child && child.pid) {
-                    try {
-                        const stats = await pidusage(child.pid);
-                        this.stats.set(key, {
-                            cpu: Math.round(stats.cpu * 10) / 10,
-                            memory: Math.round(stats.memory / (1024 * 1024) * 10) / 10, // MB
-                            elapsed: stats.elapsed
-                        });
-                    } catch (e) {
-                        // Process cleanup or if pidusage fails
+                if (!child || !child.pid) continue;
+
+                try {
+                    const pids = this.getChildrenRecursive(child.pid, globalProcessMap);
+                    const statsMap = await this.getStatsResilient(pids);
+                    
+                    let totalCpu = 0;
+                    let totalMem = 0;
+                    let maxElapsed = 0;
+
+                    for (const s of Object.values(statsMap) as any[]) {
+                        totalCpu += s.cpu;
+                        if (s.elapsed > maxElapsed) maxElapsed = s.elapsed;
+                        // We'll use the precise private memory from our PowerShell scan instead of pidusage's total working set
                     }
+
+                    // Sum up private memory from our map for this specific tree
+                    for (const pid of pids) {
+                        totalMem += this.privateMemMap.get(pid) || 0;
+                    }
+
+                    // 4. Update stats with safety rounding
+                    this.stats.set(key, {
+                        cpu: Math.round(totalCpu * 10) / 10,
+                        memory: Math.round(totalMem / (1024 * 1024) * 10) / 10,
+                        elapsed: maxElapsed
+                    });
+                } catch (e) {
+                    try {
+                        const s = await pidusage(child.pid);
+                        this.stats.set(key, {
+                            cpu: Math.round(s.cpu * 10) / 10,
+                            memory: Math.round(s.memory / (1024 * 1024) * 10) / 10,
+                            elapsed: s.elapsed
+                        });
+                    } catch (err) { }
                 }
             }
-        }, 3000);
+
+            // Schedule the next poll to start 3 seconds AFTER this one finished.
+            // This prevents "piling up" without prematurely killing a healthy poll.
+            this.statsInterval = setTimeout(poll, 500);
+        };
+
+        // Initial trigger
+        poll();
+    }
+
+    private async getSystemProcessMap(): Promise<Map<number, number[]>> {
+        const map = new Map<number, number[]>();
+        if (process.platform !== 'win32') return map;
+
+        try {
+            // Optimization: Only fetch the 3 columns we need. This is significantly faster.
+            const script = "Get-CimInstance Win32_Process -Property ProcessId, ParentProcessId, PrivatePageCount | Select-Object ProcessId, ParentProcessId, PrivatePageCount | ConvertTo-Csv -NoTypeInformation | Select-Object -Skip 1";
+            
+            return new Promise((resolve) => {
+                const child = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-WindowStyle', 'Hidden', '-Command', script], {
+                    windowsHide: true
+                });
+                this.telemetryProcess = child;
+
+                let output = '';
+                child.stdout.on('data', (data) => output += data.toString());
+                
+                const timeout = setTimeout(() => {
+                    child.kill();
+                    resolve(map);
+                }, 10000); // Increased to 10 second hard timeout for safety
+
+                child.on('close', () => {
+                    clearTimeout(timeout);
+                    this.telemetryProcess = null; // Clear reference
+                    this.privateMemMap.clear(); // Fresh map for each scan
+                    output.split(/\r?\n/).forEach(line => {
+                        // Strip quotes and split by comma
+                        const parts = line.replace(/"/g, '').trim().split(',');
+                        if (parts.length === 3) {
+                            const pid = Number(parts[0]);
+                            const ppid = Number(parts[1]);
+                            const mem = Number(parts[2]);
+
+                            if (!isNaN(pid) && !isNaN(ppid)) {
+                                if (!map.has(ppid)) map.set(ppid, []);
+                                map.get(ppid)!.push(pid);
+                                if (!isNaN(mem)) this.privateMemMap.set(pid, mem);
+                            }
+                        }
+                    });
+                    resolve(map);
+                });
+
+                child.on('error', () => {
+                    clearTimeout(timeout);
+                    this.telemetryProcess = null; // Clear reference
+                    resolve(map);
+                });
+            });
+        } catch (e) { }
+        return map;
+    }
+
+    private getChildrenRecursive(ppid: number, map: Map<number, number[]>): number[] {
+        const pids = [ppid];
+        const children = map.get(ppid) || [];
+        for (const child of children) {
+            pids.push(...this.getChildrenRecursive(child, map));
+        }
+        return Array.from(new Set(pids));
+    }
+
+    private async getStatsResilient(pids: number[]): Promise<Record<string, any>> {
+        try {
+            return await pidusage(pids);
+        } catch (e) {
+            // If batch fails (process died), get them individually
+            const stats = {};
+            await Promise.all(pids.map(async (pid) => {
+                try { stats[pid] = await pidusage(pid); } catch (err) {}
+            }));
+            return stats;
+        }
     }
 
     private getStatusKey(servicePath: string) {
@@ -60,7 +188,8 @@ export class ProcessManager {
             cwd: servicePath,
             env: { ...process.env, ...(customPort ? { PORT: customPort.toString() } : {}) },
             stdio: 'pipe',
-            shell: true 
+            shell: true,
+            windowsHide: true 
         });
 
         this.processes.set(key, child);
@@ -123,7 +252,7 @@ export class ProcessManager {
             return new Promise((resolve) => {
                 try {
                     if (process.platform === 'win32') {
-                        spawn('taskkill', ['/pid', pid.toString(), '/f', '/t']);
+                        spawn('taskkill', ['/pid', pid.toString(), '/f', '/t'], { windowsHide: true });
                     } else {
                         // On Linux, we use process group kill to kill the child and its sub-processes
                         spawn('pkill', ['-P', pid.toString()]);
@@ -159,12 +288,118 @@ export class ProcessManager {
         return this.logs.get(this.getStatusKey(servicePath)) || [];
     }
 
-    async getServiceStatus(servicePath: string): Promise<{ status: "stopped" | "starting" | "running" | "error" | "building" | "installing" | "build-error" | "install-error", mode: "dev" | "prod" | null, stats?: ServiceStats }> {
+    async getServiceStatus(servicePath: string): Promise<{ 
+        status: "stopped" | "starting" | "running" | "error" | "building" | "installing" | "build-error" | "install-error", 
+        mode: "dev" | "prod" | null, 
+        stats?: ServiceStats,
+        gitBranch?: string,
+        gitStatus?: { ahead: number, behind: number, hasLocalChanges: boolean }
+    }> {
+        const gitInfo = this.gitData.get(servicePath);
         return {
             status: this.status.get(this.getStatusKey(servicePath)) || "stopped",
             mode: this.modes.get(this.getStatusKey(servicePath)) || null,
-            stats: this.stats.get(this.getStatusKey(servicePath))
+            stats: this.stats.get(this.getStatusKey(servicePath)),
+            gitBranch: gitInfo?.branch,
+            gitStatus: gitInfo?.status
         };
+    }
+
+    setWorkbenchPath(path: string) {
+        if (this.currentWorkbenchPath === path) return;
+        this.currentWorkbenchPath = path;
+        this.startGitPolling();
+    }
+
+    private startGitPolling() {
+        if (this.gitPollingTimeout) clearTimeout(this.gitPollingTimeout);
+        
+        const poll = async () => {
+            if (!this.currentWorkbenchPath) return;
+
+            // Kill previous if still hanging
+            if (this.gitProcess) {
+                try { 
+                    if (process.platform === 'win32') {
+                        spawn('taskkill', ['/pid', this.gitProcess.pid!.toString(), '/f', '/t'], { windowsHide: true });
+                    } else {
+                        this.gitProcess.kill(); 
+                    }
+                } catch(e) {}
+                this.gitProcess = null;
+            }
+
+            const script = `
+                $workbenchPath = "${this.currentWorkbenchPath}"
+                Get-ChildItem -Path $workbenchPath -Directory | ForEach-Object {
+                    $repoPath = $_.FullName
+                    if (Test-Path "$repoPath\\.git") {
+                        try {
+                            $branchInfo = git -C $repoPath status --branch --porcelain --ignore-submodules=all
+                            if ($branchInfo) {
+                                $lines = $branchInfo -split "\`n"
+                                $branchLine = $lines[0]
+                                $dirty = $lines.Length -gt 1
+                                
+                                $branch = ""
+                                $ahead = 0
+                                $behind = 0
+                                
+                                if ($branchLine -like "## *") {
+                                    $core = $branchLine.Substring(3)
+                                    if ($core -like "*...*") {
+                                        $branch = $core.Split("...")[0]
+                                        if ($core -match "ahead (\\d+)") { $ahead = $matches[1] }
+                                        if ($core -match "behind (\\d+)") { $behind = $matches[1] }
+                                    } else {
+                                        $branch = $core.Trim()
+                                    }
+                                }
+                                Write-Output "$repoPath|$branch|$ahead|$behind|$dirty"
+                            }
+                        } catch { }
+                    }
+                }
+            `;
+
+            this.gitProcess = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-WindowStyle', 'Hidden', '-Command', script], {
+                windowsHide: true
+            });
+
+            let output = '';
+            this.gitProcess.stdout?.on('data', (data) => output += data.toString());
+
+            this.gitProcess.on('close', () => {
+                this.gitProcess = null;
+                
+                // Parse results
+                output.split(/\r?\n/).forEach(line => {
+                    if (!line.trim()) return;
+                    const parts = line.split('|');
+                    if (parts.length === 5) {
+                        const [p, branch, ahead, behind, dirty] = parts;
+                        this.gitData.set(p, {
+                            branch: branch.trim(),
+                            status: {
+                                ahead: parseInt(ahead, 10) || 0,
+                                behind: parseInt(behind, 10) || 0,
+                                hasLocalChanges: dirty.trim().toLowerCase() === 'true'
+                            }
+                        });
+                    }
+                });
+
+                // Schedule next poll - 30 seconds
+                this.gitPollingTimeout = setTimeout(poll, 30000);
+            });
+
+            this.gitProcess.on('error', () => {
+                this.gitProcess = null;
+                this.gitPollingTimeout = setTimeout(poll, 30000);
+            });
+        };
+
+        poll();
     }
 
     clearLogs(servicePath: string) {

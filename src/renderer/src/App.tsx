@@ -130,6 +130,7 @@ function App() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   const [isBotProcessing, setIsBotProcessing] = useState(false);
+  const [isWindowFocused, setIsWindowFocused] = useState(true);
   const gitMenuRef = useRef<HTMLDivElement>(null);
 
   const handleToggleSelect = (path: string) => {
@@ -178,10 +179,38 @@ function App() {
       };
 
       window.addEventListener('focus', onFocus);
-      return () => window.removeEventListener('focus', onFocus);
+      window.addEventListener('blur', () => setIsWindowFocused(false));
+      return () => {
+        window.removeEventListener('focus', onFocus);
+        window.removeEventListener('blur', () => setIsWindowFocused(false));
+      };
     }
     return;
   }, [activeWorkbenchId, workbenchPath]);
+
+  // Global Telemetry Polling (Focus-Aware)
+  useEffect(() => {
+    if (!workbenchPath || !isWindowFocused) return;
+
+    const interval = setInterval(() => {
+      fetchData(false); // Light refresh for stats
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [workbenchPath, isWindowFocused, activeWorkbenchId]);
+
+  useEffect(() => {
+    const handleFocus = () => setIsWindowFocused(true);
+    const handleBlur = () => setIsWindowFocused(false);
+
+    window.addEventListener('focus', handleFocus);
+    window.addEventListener('blur', handleBlur);
+
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+      window.removeEventListener('blur', handleBlur);
+    };
+  }, []);
 
   const loadConfig = async () => {
     try {

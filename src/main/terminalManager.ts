@@ -17,7 +17,8 @@ class TerminalProcessManager {
             try {
                 const childProcess = spawn(shell, [], {
                     cwd: cwd || process.env.USERPROFILE,
-                    env: process.env as { [key: string]: string }
+                    env: process.env as { [key: string]: string },
+                    windowsHide: true
                 });
 
                 childProcess.stdout.on('data', (data) => {

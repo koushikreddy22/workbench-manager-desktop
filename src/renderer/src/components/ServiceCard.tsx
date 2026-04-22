@@ -442,42 +442,107 @@ export function ServiceCard({ name, path, status, mode, port, gitBranch, gitStat
                         </div>
                     )}
 
-                    <div className="flex items-center gap-2 mt-5 pt-4 border-t border-slate-800/50">
-                        <button
-                            onClick={() => onToggle(path, status === "running" ? "stop" : "start", "dev")}
-                            className={cn(
-                                "flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-xs font-bold transition-all border",
-                                status === "running" && mode === "dev"
-                                    ? "bg-red-500/10 text-red-500 border-red-500/20 hover:bg-red-500/20"
-                                    : (status === "running" && mode === "prod")
-                                        ? "bg-slate-800/50 text-slate-600 border-transparent cursor-not-allowed opacity-40"
-                                        : "bg-cyan-500/10 text-cyan-400 border-cyan-500/20 hover:bg-cyan-500/20"
-                            )}
-                            disabled={status === "running" && mode === "prod"}
-                        >
-                            {status === "running" && mode === "dev" ? <><Square className="h-3.5 w-3.5" /> Stop</> : <><Play className="h-3.5 w-3.5" /> Dev Mode</>}
-                        </button>
+                    <div className="mt-5 pt-4 border-t border-slate-800/50 space-y-4">
+                        {/* Performance Radar Section - Now Full Width & Dedicated */}
+                        {stats && status === "running" && (
+                            <motion.div 
+                                initial={{ opacity: 0, y: 10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                className="w-full flex flex-col gap-2 p-3 rounded-xl bg-slate-950/40 border border-slate-800/60 shadow-inner group/perf"
+                            >
+                                <div className="flex items-center justify-between px-1">
+                                    <div className="flex items-center gap-2">
+                                        <div className={cn(
+                                            "h-1.5 w-1.5 rounded-full",
+                                            isAnomaly ? "bg-red-500 animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.5)]" : "bg-cyan-500 shadow-[0_0_8px_rgba(6,182,212,0.5)]"
+                                        )} />
+                                        <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.15em]">Telemetry Stream</span>
+                                    </div>
+                                    <div className="flex items-center gap-4">
+                                        <div className="flex flex-col items-end">
+                                            <div className="flex items-center gap-1.5">
+                                                <span className="text-[9px] font-bold text-slate-600 uppercase">CPU Load</span>
+                                                <span className={cn(
+                                                    "text-[11px] font-black font-mono",
+                                                    stats.cpu > 80 ? "text-red-400" : stats.cpu > 50 ? "text-yellow-400" : "text-cyan-400"
+                                                )}>{stats.cpu}%</span>
+                                            </div>
+                                        </div>
+                                        <div className="w-px h-6 bg-slate-800/50" />
+                                        <div className="flex flex-col items-end">
+                                            <div className="flex items-center gap-1.5">
+                                                <span className="text-[9px] font-bold text-slate-600 uppercase">Memory RSS</span>
+                                                <span className={cn(
+                                                    "text-[11px] font-black font-mono",
+                                                    stats.memory > 800 ? "text-red-400" : stats.memory > 500 ? "text-yellow-400" : "text-cyan-400"
+                                                )}>{stats.memory}MB</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div className="flex gap-2 mt-1">
+                                    <div className="h-1.5 flex-1 bg-slate-900 rounded-full overflow-hidden border border-slate-800/30">
+                                        <motion.div 
+                                            initial={{ width: 0 }}
+                                            animate={{ width: `${Math.min(stats.cpu, 100)}%` }}
+                                            className={cn(
+                                                "h-full transition-all duration-700",
+                                                stats.cpu > 80 ? "bg-gradient-to-r from-red-600 to-red-400" : stats.cpu > 50 ? "bg-gradient-to-r from-yellow-600 to-yellow-400" : "bg-gradient-to-r from-cyan-600 to-cyan-400"
+                                            )}
+                                        />
+                                    </div>
+                                    <div className="h-1.5 flex-1 bg-slate-900 rounded-full overflow-hidden border border-slate-800/30">
+                                        <motion.div 
+                                            initial={{ width: 0 }}
+                                            animate={{ width: `${Math.min((stats.memory / 1024) * 100, 100)}%` }}
+                                            className={cn(
+                                                "h-full transition-all duration-700",
+                                                stats.memory > 800 ? "bg-gradient-to-r from-red-600 to-red-400" : stats.memory > 500 ? "bg-gradient-to-r from-yellow-600 to-yellow-400" : "bg-gradient-to-r from-cyan-600 to-cyan-400"
+                                            )}
+                                        />
+                                    </div>
+                                </div>
+                            </motion.div>
+                        )}
 
-                        <button
-                            onClick={() => onToggle(path, status === "running" ? "stop" : "start", "prod")}
-                            className={cn(
-                                "flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-xs font-bold transition-all border",
-                                status === "running" && mode === "prod"
-                                    ? "bg-red-500/10 text-red-500 border-red-500/20 hover:bg-red-500/20"
-                                    : (status === "running" && mode === "dev") || status === "building"
-                                        ? "bg-slate-800/50 text-slate-600 border-transparent cursor-not-allowed opacity-40"
-                                        : "bg-amber-500/10 text-amber-500 border-amber-500/20 hover:bg-amber-500/20"
-                            )}
-                            disabled={(status === "running" && mode === "dev") || status === "building"}
-                        >
-                            {status === "building" ? (
-                                <><RefreshCw className="h-3.5 w-3.5 animate-spin" /> Building...</>
-                            ) : status === "running" && mode === "prod" ? (
-                                <><Square className="h-3.5 w-3.5" /> Stop</>
-                            ) : (
-                                <><Rocket className="h-3.5 w-3.5" /> Prod</>
-                            )}
-                        </button>
+                        <div className="flex items-center gap-2 w-full">
+                            <button
+                                onClick={() => onToggle(path, status === "running" ? "stop" : "start", "dev")}
+                                className={cn(
+                                    "flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-xs font-bold transition-all border",
+                                    status === "running" && mode === "dev"
+                                        ? "bg-red-500/10 text-red-500 border-red-500/20 hover:bg-red-500/20 shadow-[0_0_15px_rgba(239,68,68,0.1)]"
+                                        : (status === "running" && mode === "prod")
+                                            ? "bg-slate-800/50 text-slate-600 border-transparent cursor-not-allowed opacity-40"
+                                            : "bg-cyan-500/10 text-cyan-400 border-cyan-500/20 hover:bg-cyan-500/20"
+                                )}
+                                disabled={status === "running" && mode === "prod"}
+                            >
+                                {status === "running" && mode === "dev" ? <><Square className="h-3.5 w-3.5" /> Stop</> : <><Play className="h-3.5 w-3.5" /> Dev Mode</>}
+                            </button>
+
+                            <button
+                                onClick={() => onToggle(path, status === "running" ? "stop" : "start", "prod")}
+                                className={cn(
+                                    "flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-xs font-bold transition-all border",
+                                    status === "running" && mode === "prod"
+                                        ? "bg-red-500/10 text-red-500 border-red-500/20 hover:bg-red-500/20 shadow-[0_0_15px_rgba(239,68,68,0.1)]"
+                                        : (status === "running" && mode === "dev") || status === "building"
+                                            ? "bg-slate-800/50 text-slate-600 border-transparent cursor-not-allowed opacity-40"
+                                            : "bg-amber-500/10 text-amber-500 border-amber-500/20 hover:bg-amber-500/20"
+                                )}
+                                disabled={(status === "running" && mode === "dev") || status === "building"}
+                            >
+                                {status === "building" ? (
+                                    <><RefreshCw className="h-3.5 w-3.5 animate-spin" /> Building...</>
+                                ) : status === "running" && mode === "prod" ? (
+                                    <><Square className="h-3.5 w-3.5" /> Stop</>
+                                ) : (
+                                    <><Rocket className="h-3.5 w-3.5" /> Prod</>
+                                )}
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>

@@ -377,15 +377,46 @@ export function setupIpcHandlers() {
         // Return cached services if not forcing a refresh AND directory structure is identical
         if (!forceRefresh && fs.existsSync(cachePath)) {
             try {
+                processManager.setWorkbenchPath(workbenchPath);
                 const cachedData = JSON.parse(fs.readFileSync(cachePath, 'utf8'));
                 const cachedEntries = cachedData.services.map((s: any) => path.basename(s.path)).sort();
 
                 // If the directory structure is exactly the same, use the cache
                 if (JSON.stringify(currentEntries) === JSON.stringify(cachedEntries)) {
-                    // Merge with live status from processManager
+                    // Re-read environments for UI sync
+                    const envsPath = path.join(app.getPath('userData'), 'environments.json');
+                    let globalEnvs: any = {};
+                    if (fs.existsSync(envsPath)) {
+                        try { globalEnvs = JSON.parse(fs.readFileSync(envsPath, 'utf8')); } catch (e) { }
+                    }
+
+                    // Merge with live status and environment from processManager/disk
                     const mergedServices = await Promise.all(cachedData.services.map(async (svc: any) => {
-                        const status = await processManager.getServiceStatus(svc.path);
-                        return { ...svc, status: status.status, mode: status.mode, stats: status.stats };
+                        const live = await processManager.getServiceStatus(svc.path);
+                        
+                        // Sync environment state
+                        let activeEnv = null;
+                        let envProfiles = [];
+                        let activeEnvId = null;
+                        const serviceEnvs = globalEnvs[svc.path];
+                        if (serviceEnvs && serviceEnvs.active && serviceEnvs.profiles) {
+                            envProfiles = serviceEnvs.profiles.map((p: any) => ({ id: p.id, name: p.name, color: p.color }));
+                            activeEnvId = serviceEnvs.active;
+                            const profile = serviceEnvs.profiles.find((p: any) => p.id === serviceEnvs.active);
+                            if (profile) activeEnv = { name: profile.name, color: profile.color };
+                        }
+
+                        return { 
+                            ...svc, 
+                            status: live.status, 
+                            mode: live.mode, 
+                            stats: live.stats,
+                            gitBranch: live.gitBranch || svc.gitBranch,
+                            gitStatus: live.gitStatus || svc.gitStatus,
+                            activeEnv,
+                            envProfiles,
+                            activeEnvId
+                        };
                     }));
                     return { services: mergedServices };
                 }
@@ -393,6 +424,8 @@ export function setupIpcHandlers() {
                 console.error('Failed to load or validate services cache:', e);
             }
         }
+
+        processManager.setWorkbenchPath(workbenchPath);
 
         const envsPath = path.join(app.getPath('userData'), 'environments.json');
         let globalEnvs: any = {};
@@ -426,43 +459,6 @@ export function setupIpcHandlers() {
                                 const envPortMatch = envContent.match(/^PORT\s*=\s*["']?(\d+)["']?/m);
                                 if (envPortMatch) detectedPort = parseInt(envPortMatch[1], 10);
                             }
-                        }
-                    } catch (e) { }
-
-                    let gitBranch, gitStatus;
-                    try {
-                        // Use the queue to limit concurrent git processes
-                        const statusOutput = await gitQueue.add(() => 
-                            execAsync('git status --branch --porcelain', { 
-                                cwd: fullPath, 
-                                env: GIT_ENV,
-                                timeout: 10000 // 10s timeout
-                            })
-                        ).then(res => res.stdout).catch(() => null);
-
-                        if (statusOutput) {
-                            const lines = statusOutput.split('\n');
-                            const branchLine = lines[0]; // e.g. "## main...origin/main [ahead 1, behind 2]"
-                            
-                            if (branchLine.startsWith('## ')) {
-                                const branchInfo = branchLine.substring(3);
-                                if (branchInfo.includes('...')) {
-                                    gitBranch = branchInfo.split('...')[0];
-                                    
-                                    const aheadMatch = branchInfo.match(/ahead\s+(\d+)/);
-                                    const behindMatch = branchInfo.match(/behind\s+(\d+)/);
-                                    
-                                    gitStatus = { 
-                                        ahead: aheadMatch ? parseInt(aheadMatch[1], 10) : 0, 
-                                        behind: behindMatch ? parseInt(behindMatch[1], 10) : 0,
-                                        hasLocalChanges: false 
-                                    };
-                                } else {
-                                    gitBranch = branchInfo.trim();
-                                    gitStatus = { ahead: 0, behind: 0, hasLocalChanges: false };
-                                }
-                            }
-                            gitStatus.hasLocalChanges = lines.slice(1).some(line => line.trim().length > 0);
                         }
                     } catch (e) { }
 
@@ -513,8 +509,8 @@ export function setupIpcHandlers() {
                         mode: serviceStatus.mode,
                         stats: serviceStatus.stats,
                         port: detectedPort,
-                        gitBranch,
-                        gitStatus,
+                        gitBranch: serviceStatus.gitBranch,
+                        gitStatus: serviceStatus.gitStatus,
                         activeEnv,
                         envProfiles,
                         activeEnvId
