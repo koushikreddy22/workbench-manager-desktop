@@ -1,10 +1,16 @@
-# 💎 Vantage Pro: Studio-Grade Service Orchestration
+# 💎 Vantage Pro 🚀
+**A desktop DevOps workspace to manage services, environments, and debugging workflows in one place.**
 
 ![Vantage Pro Hero](docs/screenshots/hero.png)
 
-Vantage Pro is a premium, high-performance command center for modern developers. It transforms the chaotic terminal-juggling of microservice development into a streamlined, highly-visual, and dependency-aware experience.
+Vantage Pro transforms the chaotic terminal-juggling of microservice development into a streamlined, highly-visual, and dependency-aware experience. Built for **Windows Engineers**, it empowers you to *control and orchestrate all local services from one place*.
 
-Built for **Windows Engineers**, Vantage Pro leverages native system discovery (via PowerShell) and high-fidelity rendering to provide a studio-grade monitoring environment.
+## 🎯 What it helps you do
+- **Start & manage** multiple services seamlessly.
+- **Orchestrate dependencies** using "Smart Boot" clusters.
+- **Monitor CPU & memory** telemetry in real-time.
+- **Debug instantly** with integrated logs + AI assistance.
+- **Govern environments** across your entire stack (Local / Dev / QA / Prod).
 
 ---
 
