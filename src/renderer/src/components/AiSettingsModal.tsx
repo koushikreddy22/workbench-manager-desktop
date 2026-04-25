@@ -372,35 +372,24 @@ export const AiSettingsModal: React.FC<AiSettingsModalProps> = ({
             )}
           </AnimatePresence>
 
-          {/* Auto-Pilot Toggle */}
-          <div className="p-4 bg-blue-500/5 rounded-2xl border border-blue-500/20 flex items-center justify-between group hover:border-blue-500/40 transition-all">
+          {/* Auto-Pilot Toggle - DISABLED BY USER REQUEST */}
+          <div className="p-4 bg-slate-800/50 rounded-2xl border border-white/5 flex items-center justify-between opacity-50 cursor-not-allowed">
             <div className="flex items-center gap-3">
-              <div className="p-2 rounded-xl bg-blue-500/20 text-blue-400">
+              <div className="p-2 rounded-xl bg-slate-700 text-slate-500">
                 <Sparkles className="h-4 w-4" />
               </div>
               <div>
-                <div className="text-xs font-black text-white uppercase tracking-widest">
-                  Auto-Pilot Mode
+                <div className="text-xs font-black text-slate-500 uppercase tracking-widest">
+                  Auto-Pilot Mode (Disabled)
                 </div>
-                <div className="text-[10px] text-slate-500">
-                  Automatically execute AI suggestions (scaffolding, shell commands)
+                <div className="text-[10px] text-slate-600">
+                  This feature is currently unavailable.
                 </div>
               </div>
             </div>
-            <button
-              onClick={() => setSettings({ ...settings, autoPilot: !settings.autoPilot })}
-              className={cn(
-                'w-12 h-6 rounded-full p-1 transition-colors relative',
-                settings.autoPilot ? 'bg-blue-500' : 'bg-slate-800'
-              )}
-            >
-              <div
-                className={cn(
-                  'w-4 h-4 bg-white rounded-full shadow-sm transition-transform',
-                  settings.autoPilot ? 'translate-x-6' : 'translate-x-0'
-                )}
-              />
-            </button>
+            <div className="w-12 h-6 rounded-full p-1 bg-slate-800 relative">
+              <div className="w-4 h-4 bg-slate-600 rounded-full shadow-sm translate-x-0" />
+            </div>
           </div>
 
           {/* Test & Status */}

@@ -68,7 +68,6 @@ export const AiChatbot: React.FC<AiChatbotProps> = ({
   const activeConv = conversations.find((c) => c.id === activeConversationId)
   const messages = activeConv?.messages || []
   const [shellExecuting, setShellExecuting] = useState<string | null>(null)
-  const [autoExecutedActions] = useState(new Set<string>())
   const [executionResults, setExecutionResults] = useState<
     Record<string, { success: boolean; error?: string }>
   >({})
@@ -81,13 +80,15 @@ export const AiChatbot: React.FC<AiChatbotProps> = ({
   }, [messages, isOpen])
 
   // Auto-Pilot Effect: Scan the last message for actions to auto-execute
+  // DISABLED: User requested to prevent auto-execution as it's not working well.
   useEffect(() => {
+    /* 
     if (!settings?.autoPilot) return
 
     const lastMessage = messages[messages.length - 1]
     if (!lastMessage || lastMessage.role !== 'assistant') return
 
-    const actionRegex = /\[(SHELL|CREATE_FILE|FIX_FILE): ([\s\S]+?)\]/g
+    const actionRegex = /\[(SHELL|CREATE_FILE|FIX_FILE): ([\s\S]+?)]/g
     let match
 
     while ((match = actionRegex.exec(lastMessage.content)) !== null) {
@@ -107,6 +108,7 @@ export const AiChatbot: React.FC<AiChatbotProps> = ({
         }, 800)
       }
     }
+    */
   }, [messages, settings?.autoPilot])
 
   const handleAutoShell = async (command: string, key?: string) => {

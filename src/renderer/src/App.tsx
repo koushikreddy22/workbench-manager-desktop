@@ -162,7 +162,8 @@ function App() {
     ollamaModel: 'llama3',
     cloudProvider: 'openai',
     cloudModel: 'gpt-4o-mini',
-    apiKey: ''
+    apiKey: '',
+    autoPilot: false
   })
   const [isAiSettingsModalOpen, setIsAiSettingsModalOpen] = useState(false)
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false)
@@ -322,7 +323,7 @@ function App() {
         setDefaultIde(config.defaultIde)
       }
       if (config.aiSettings) {
-        setAiSettings(config.aiSettings)
+        setAiSettings({ ...config.aiSettings, autoPilot: false })
       }
       if (config.conversations) {
         setConversations(config.conversations)
