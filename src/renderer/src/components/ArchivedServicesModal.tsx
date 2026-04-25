@@ -1,87 +1,96 @@
-import { useState, useEffect } from "react";
-import { X, Search, RotateCcw, Trash2, Archive, Loader2, AlertCircle, Check } from "lucide-react";
-
+import { useState, useEffect } from 'react'
+import { X, Search, RotateCcw, Trash2, Archive, Loader2, AlertCircle, Check } from 'lucide-react'
 
 interface ArchivedService {
-  name: string;
-  archivedAt: string;
-  path: string;
+  name: string
+  archivedAt: string
+  path: string
 }
 
 interface ArchivedServicesModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  workbenchPath: string;
-  onRestore: () => void;
+  isOpen: boolean
+  onClose: () => void
+  workbenchPath: string
+  onRestore: () => void
 }
 
-export function ArchivedServicesModal({ isOpen, onClose, workbenchPath, onRestore }: ArchivedServicesModalProps) {
-  const [services, setServices] = useState<ArchivedService[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [actionLoading, setActionLoading] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
+export function ArchivedServicesModal({
+  isOpen,
+  onClose,
+  workbenchPath,
+  onRestore
+}: ArchivedServicesModalProps) {
+  const [services, setServices] = useState<ArchivedService[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [actionLoading, setActionLoading] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [success, setSuccess] = useState<string | null>(null)
 
   useEffect(() => {
     if (isOpen && workbenchPath) {
-      fetchArchivedServices();
+      fetchArchivedServices()
     }
-  }, [isOpen, workbenchPath]);
+  }, [isOpen, workbenchPath])
 
   const fetchArchivedServices = async () => {
-    setIsLoading(true);
-    setError(null);
+    setIsLoading(true)
+    setError(null)
     try {
-      const res = await window.api.getArchivedServices(workbenchPath);
-      setServices(res.services || []);
+      const res = await window.api.getArchivedServices(workbenchPath)
+      setServices(res.services || [])
     } catch (err) {
-      console.error("Failed to fetch archived services:", err);
-      setError("Failed to load archived services.");
+      console.error('Failed to fetch archived services:', err)
+      setError('Failed to load archived services.')
     } finally {
-      setIsLoading(false);
+      setIsLoading(false)
     }
-  };
+  }
 
   const handleRestore = async (serviceName: string) => {
-    setActionLoading(`restore-${serviceName}`);
-    setError(null);
-    setSuccess(null);
+    setActionLoading(`restore-${serviceName}`)
+    setError(null)
+    setSuccess(null)
     try {
-      await window.api.restoreService({ workbenchPath, serviceName });
-      setSuccess(`Successfully restored ${serviceName}`);
-      onRestore();
-      fetchArchivedServices();
-      setTimeout(() => setSuccess(null), 3000);
+      await window.api.restoreService({ workbenchPath, serviceName })
+      setSuccess(`Successfully restored ${serviceName}`)
+      onRestore()
+      fetchArchivedServices()
+      setTimeout(() => setSuccess(null), 3000)
     } catch (err: any) {
-      console.error("Failed to restore service:", err);
-      setError(err.message || "Failed to restore service.");
+      console.error('Failed to restore service:', err)
+      setError(err.message || 'Failed to restore service.')
     } finally {
-      setActionLoading(null);
+      setActionLoading(null)
     }
-  };
+  }
 
   const handleDelete = async (serviceName: string) => {
-    if (!confirm(`Are you sure you want to permanently delete "${serviceName}"? This action cannot be undone.`)) return;
+    if (
+      !confirm(
+        `Are you sure you want to permanently delete "${serviceName}"? This action cannot be undone.`
+      )
+    )
+      return
 
-    setActionLoading(`delete-${serviceName}`);
-    setError(null);
+    setActionLoading(`delete-${serviceName}`)
+    setError(null)
     try {
-      await window.api.deleteArchivedService({ workbenchPath, serviceName });
-      fetchArchivedServices();
+      await window.api.deleteArchivedService({ workbenchPath, serviceName })
+      fetchArchivedServices()
     } catch (err) {
-      console.error("Failed to delete service:", err);
-      setError("Failed to delete archived service.");
+      console.error('Failed to delete service:', err)
+      setError('Failed to delete archived service.')
     } finally {
-      setActionLoading(null);
+      setActionLoading(null)
     }
-  };
+  }
 
-  const filteredServices = services.filter(s => 
+  const filteredServices = services.filter((s) =>
     s.name.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  )
 
-  if (!isOpen) return null;
+  if (!isOpen) return null
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-200">
@@ -94,10 +103,12 @@ export function ArchivedServicesModal({ isOpen, onClose, workbenchPath, onRestor
             </div>
             <div>
               <h2 className="text-xl font-black text-white tracking-tight">Archived Channels</h2>
-              <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mt-0.5">Restore or manage offline work</p>
+              <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mt-0.5">
+                Restore or manage offline work
+              </p>
             </div>
           </div>
-          <button 
+          <button
             onClick={onClose}
             className="p-2 rounded-xl hover:bg-slate-800 text-slate-400 hover:text-white transition-all"
           >
@@ -137,7 +148,9 @@ export function ArchivedServicesModal({ isOpen, onClose, workbenchPath, onRestor
           {isLoading ? (
             <div className="flex flex-col items-center justify-center py-20 gap-4">
               <Loader2 className="h-10 w-10 text-cyan-500 animate-spin" />
-              <p className="text-sm font-black text-slate-500 tracking-widest uppercase">Fetching Archives...</p>
+              <p className="text-sm font-black text-slate-500 tracking-widest uppercase">
+                Fetching Archives...
+              </p>
             </div>
           ) : filteredServices.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-20 text-center px-8">
@@ -145,18 +158,18 @@ export function ArchivedServicesModal({ isOpen, onClose, workbenchPath, onRestor
                 <Archive className="h-10 w-10 text-slate-600" />
               </div>
               <h3 className="text-lg font-bold text-slate-300 mb-2">
-                {searchQuery ? "No matching archives" : "Vault is Empty"}
+                {searchQuery ? 'No matching archives' : 'Vault is Empty'}
               </h3>
               <p className="text-sm text-slate-500 max-w-xs mx-auto leading-relaxed">
-                {searchQuery 
-                  ? "We couldn't find any archived services matching your search." 
-                  : "All your services are currently active. Archived channels will appear here."}
+                {searchQuery
+                  ? "We couldn't find any archived services matching your search."
+                  : 'All your services are currently active. Archived channels will appear here.'}
               </p>
             </div>
           ) : (
             <div className="grid gap-3">
               {filteredServices.map((service) => (
-                <div 
+                <div
                   key={service.name}
                   className="group flex items-center justify-between p-4 rounded-2xl bg-slate-900/40 border border-slate-800/60 hover:border-slate-700/60 hover:bg-slate-800/40 transition-all"
                 >
@@ -165,11 +178,18 @@ export function ArchivedServicesModal({ isOpen, onClose, workbenchPath, onRestor
                       <Archive className="h-5 w-5 text-slate-400 group-hover:text-amber-400 transition-colors" />
                     </div>
                     <div className="min-w-0">
-                      <h4 className="text-sm font-black text-white truncate pr-2 group-hover:text-cyan-400 transition-colors" title={service.name}>
+                      <h4
+                        className="text-sm font-black text-white truncate pr-2 group-hover:text-cyan-400 transition-colors"
+                        title={service.name}
+                      >
                         {service.name}
                       </h4>
                       <p className="text-[10px] font-bold text-slate-500 flex items-center gap-1.5 uppercase tracking-tighter mt-0.5">
-                        Archived {new Date(service.archivedAt).toLocaleDateString()} at {new Date(service.archivedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        Archived {new Date(service.archivedAt).toLocaleDateString()} at{' '}
+                        {new Date(service.archivedAt).toLocaleTimeString([], {
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        })}
                       </p>
                     </div>
                   </div>
@@ -206,7 +226,8 @@ export function ArchivedServicesModal({ isOpen, onClose, workbenchPath, onRestor
         {/* Footer */}
         <div className="px-8 py-4 border-t border-slate-800 bg-slate-900/60 flex items-center justify-between">
           <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">
-            {filteredServices.length} {filteredServices.length === 1 ? 'Service' : 'Services'} Available
+            {filteredServices.length} {filteredServices.length === 1 ? 'Service' : 'Services'}{' '}
+            Available
           </p>
           <button
             onClick={onClose}
@@ -217,5 +238,5 @@ export function ArchivedServicesModal({ isOpen, onClose, workbenchPath, onRestor
         </div>
       </div>
     </div>
-  );
+  )
 }

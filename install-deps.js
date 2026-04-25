@@ -1,9 +1,9 @@
-import { execSync } from 'child_process';
+import { execSync } from 'child_process'
 
-console.log('Installing dependencies...');
+console.log('Installing dependencies...')
 try {
-    execSync('npm install xterm xterm-addon-fit node-pty', { stdio: 'inherit' });
-    console.log('Dependencies installed successfully.');
+  execSync('npm install xterm xterm-addon-fit node-pty', { stdio: 'inherit' })
+  console.log('Dependencies installed successfully.')
 } catch (error) {
-    console.error('Failed to install dependencies:', error);
+  console.error('Failed to install dependencies:', error)
 }

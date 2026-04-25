@@ -6,7 +6,7 @@ import App from './App'
 import { setupMockIpc } from './lib/mock-ipc'
 
 if (!(window as any).electron) {
-  setupMockIpc();
+  setupMockIpc()
 }
 
 createRoot(document.getElementById('root')!).render(

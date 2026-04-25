@@ -17,9 +17,12 @@ const MOCK_CONFIG = {
     apiKey: ''
   },
   chatMessages: [
-    { role: 'assistant', content: 'Hello! I am your Vantage Co-pilot. How can I help you manage your services today?' }
+    {
+      role: 'assistant',
+      content: 'Hello! I am your Vantage Co-pilot. How can I help you manage your services today?'
+    }
   ]
-};
+}
 
 const MOCK_SERVICES = [
   {
@@ -52,12 +55,12 @@ const MOCK_SERVICES = [
     gitStatus: { hasLocalChanges: false, ahead: 0, behind: 0 },
     stats: { cpu: 0, memory: 0 }
   }
-];
+]
 
 export const setupMockIpc = () => {
-  if (typeof window === 'undefined') return;
+  if (typeof window === 'undefined') return
 
-  (window as any).api = {
+  ;(window as any).api = {
     getConfig: async () => MOCK_CONFIG,
     updateConfig: async (cfg: any) => ({ ...MOCK_CONFIG, ...cfg }),
     getServices: async () => ({ services: MOCK_SERVICES }),
@@ -65,13 +68,14 @@ export const setupMockIpc = () => {
     getServiceConfigs: async () => ({ configs: {} }),
     checkIdes: async () => [{ id: 'vscode', name: 'VS Code' }],
     shellCommand: async ({ command }: any) => {
-      console.log(`[MOCK SHELL] Executing: ${command}`);
-      return { success: true, stdout: `Mock output for: ${command}` };
+      console.log(`[MOCK SHELL] Executing: ${command}`)
+      return { success: true, stdout: `Mock output for: ${command}` }
     },
     aiChat: async ({ messages }: any) => {
-      const lastMsg = messages[messages.length - 1].content.toLowerCase();
-      if (lastMsg.includes('explorer')) return "I've scanned your workspace. It seems to be a microservices architecture based on Node.js.";
-      return "This is a mock AI response. In production, I would call your configured LLM.";
+      const lastMsg = messages[messages.length - 1].content.toLowerCase()
+      if (lastMsg.includes('explorer'))
+        return "I've scanned your workspace. It seems to be a microservices architecture based on Node.js."
+      return 'This is a mock AI response. In production, I would call your configured LLM.'
     },
     fsListWorkbench: async () => ['apps/', 'libs/', 'package.json', 'README.md'],
     // Add other handles as needed for stable testing
@@ -82,7 +86,7 @@ export const setupMockIpc = () => {
     terminalClose: () => {},
     offTerminalOutput: () => {},
     offTerminalExit: () => {}
-  };
+  }
 
-  console.log("%c[Vantage] Mock IPC Bridge initialized 🚀", "color: #10b981; font-weight: bold;");
-};
+  console.log('%c[Vantage] Mock IPC Bridge initialized 🚀', 'color: #10b981; font-weight: bold;')
+}

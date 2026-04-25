@@ -1,20 +1,20 @@
 :root {
   --color-background: #ffffff;
   --color-text: #1b1b1f;
-  
-  --vantage-primary: #0EA5E9; /* Electric Cyan */
-  --vantage-secondary: #4F46E5; /* Indigo */
-  --vantage-dark: #0F172A; /* Deep Charcoal Blue */
+
+  --vantage-primary: #0ea5e9; /* Electric Cyan */
+  --vantage-secondary: #4f46e5; /* Indigo */
+  --vantage-dark: #0f172a; /* Deep Charcoal Blue */
   --vantage-surface: #ffffff;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --color-background: #0B0F19; /* Obsidian Black */
-    --color-surface: #131B2A; /* Deep Blue Surface */
-    --color-text: #F8FAFC;
-    
-    --vantage-surface: #1E293B;
+    --color-background: #0b0f19; /* Obsidian Black */
+    --color-surface: #131b2a; /* Deep Blue Surface */
+    --color-text: #f8fafc;
+
+    --vantage-surface: #1e293b;
   }
 }
 
@@ -23,8 +23,8 @@
 }
 
 .bg-vantage-mesh {
-  background-image: 
-    radial-gradient(at 0% 0%, hsla(222, 47%, 12%, 1) 0, transparent 50%), 
+  background-image:
+    radial-gradient(at 0% 0%, hsla(222, 47%, 12%, 1) 0, transparent 50%),
     radial-gradient(at 50% 0%, hsla(217, 91%, 60%, 0.1) 0, transparent 50%),
     radial-gradient(at 100% 0%, hsla(263, 70%, 50%, 0.1) 0, transparent 50%);
 }
@@ -34,10 +34,10 @@ body {
   color: var(--color-text);
 }
 
-button, 
-select, 
-input[type="checkbox"], 
-input[type="radio"],
+button,
+select,
+input[type='checkbox'],
+input[type='radio'],
 .cursor-pointer {
   cursor: pointer !important;
 }

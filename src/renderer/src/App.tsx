@@ -1,109 +1,161 @@
-import { useEffect, useState } from "react";
-import { ServiceCard } from "./components/ServiceCard";
-import { ServiceRow } from "./components/ServiceRow";
-import { GroupCard } from "./components/GroupCard";
-import { GroupModal } from "./components/GroupModal";
-import { LogModal } from "./components/LogModal";
-import { BranchModal } from "./components/BranchModal";
-import { ServiceSettingsModal } from "./components/ServiceSettingsModal";
-import { GitProfilesModal } from "./components/GitProfilesModal";
-import { CloneRepoModal } from "./components/CloneRepoModal";
-import { GitPluginsModal } from "./components/GitPluginsModal";
-import { ArchivedServicesModal } from "./components/ArchivedServicesModal";
-import { HelpModal } from "./components/HelpModal";
-import { EnvSettingsModal } from "./components/EnvSettingsModal";
-import { CommandBar } from "./components/CommandBar";
-import { parsePrompt } from "./lib/ai-engine";
-import { NetworkMap } from "./components/NetworkMap";
-import { AiSettingsModal, AiSettings } from './components/AiSettingsModal';
-import { AiChatbot } from "./components/AiChatbot";
-import { AiOrchestrator, ChatMessage } from "./lib/ai-orchestrator";
-import { Sparkles, X, Loader2, RefreshCw, FolderOpen, Plus, Code, LayoutGrid, List, Search, HelpCircle, Shield, Copy, Link, ChevronDown, Github, Terminal, Check, History, MessageSquare } from "lucide-react";
-import { cn } from "./lib/utils";
-import logo from "../../../build/icon.png";
-import { useRef } from "react";
+import { useEffect, useState } from 'react'
+import { ServiceCard } from './components/ServiceCard'
+import { ServiceRow } from './components/ServiceRow'
+import { GroupCard } from './components/GroupCard'
+import { GroupModal } from './components/GroupModal'
+import { LogModal } from './components/LogModal'
+import { BranchModal } from './components/BranchModal'
+import { ServiceSettingsModal } from './components/ServiceSettingsModal'
+import { GitProfilesModal } from './components/GitProfilesModal'
+import { CloneRepoModal } from './components/CloneRepoModal'
+import { GitPluginsModal } from './components/GitPluginsModal'
+import { ArchivedServicesModal } from './components/ArchivedServicesModal'
+import { HelpModal } from './components/HelpModal'
+import { EnvSettingsModal } from './components/EnvSettingsModal'
+import { StartupMonitorModal } from './components/StartupMonitorModal'
+import { OrchestrationModal } from './components/OrchestrationModal'
+import { CommandBar } from './components/CommandBar'
+import { parsePrompt } from './lib/ai-engine'
+import { NetworkMap } from './components/NetworkMap'
+import { AiSettingsModal, AiSettings } from './components/AiSettingsModal'
+import { AiChatbot } from './components/AiChatbot'
+import { AiOrchestrator, ChatMessage } from './lib/ai-orchestrator'
+import { AnimatePresence } from 'framer-motion'
+import {
+  Sparkles,
+  X,
+  Loader2,
+  RefreshCw,
+  FolderOpen,
+  Plus,
+  Code,
+  LayoutGrid,
+  List,
+  Search,
+  HelpCircle,
+  Shield,
+  Copy,
+  Link,
+  ChevronDown,
+  Github,
+  Terminal,
+  Check,
+  Camera,
+  Video,
+  Square
+} from 'lucide-react'
+import { cn } from './lib/utils'
+import logo from '../../../build/icon.png'
+import { useRef } from 'react'
 
-interface Service {
-  name: string;
-  path: string;
-  status: "running" | "stopped" | "error" | "starting" | "building" | "installing" | "build-error" | "install-error";
-  mode: "dev" | "prod" | null; // Added mode
-  port?: number;
-  gitBranch?: string;
+interface VantageService {
+  name: string
+  path: string
+  status:
+    | 'running'
+    | 'stopped'
+    | 'error'
+    | 'starting'
+    | 'building'
+    | 'installing'
+    | 'install-error'
+    | 'ready'
+    | 'waiting-for-dependencies'
+  mode: 'dev' | 'prod' | null // Added mode
+  port?: number
+  gitBranch?: string
   gitStatus?: {
-    hasLocalChanges: boolean;
-    ahead: number;
-    behind: number;
-  };
-  activeEnv?: { name: string; color: string } | null;
-  envProfiles?: { id: string; name: string; color: string }[];
-  activeEnvId?: string | null;
-  dependencies?: string[];
-  stats?: { cpu: number; memory: number };
+    hasLocalChanges: boolean
+    ahead: number
+    behind: number
+  }
+  activeEnv?: { name: string; color: string } | null
+  envProfiles?: { id: string; name: string; color: string }[]
+  activeEnvId?: string | null
+  dependencies?: string[]
+  stats?: { cpu: number; memory: number; history?: { cpu: number[]; memory: number[] } }
 }
 
 interface Group {
-  id: string;
-  name: string;
-  servicePaths: string[]; // Keep for compatibility
-  serviceModes?: Record<string, "dev" | "prod">;
-  serviceEnvs?: Record<string, string>;
+  id: string
+  name: string
+  servicePaths: string[]
+  serviceModes?: Record<string, 'dev' | 'prod'>
+  serviceEnvs?: Record<string, string>
+  dependencies?: Record<string, string[]>
+  pipelines?: Record<string, PipelineStep[]>
+}
+
+interface PipelineStep {
+  id: string
+  name: string
+  command: string
+  successPattern?: string
+  timeout?: number
+  isWaitPort?: boolean
+  isTransient?: boolean
 }
 
 interface Workbench {
-  id: string;
-  name: string;
-  path: string;
+  id: string
+  name: string
+  path: string
 }
 
 interface Conversation {
-  id: string;
-  title: string;
-  messages: ChatMessage[];
-  updatedAt: number;
+  id: string
+  title: string
+  messages: ChatMessage[]
+  updatedAt: number
 }
 
 function App() {
-  const [workbenches, setWorkbenches] = useState<Workbench[]>([]);
-  const [activeWorkbenchId, setActiveWorkbenchId] = useState<string | null>(null);
+  const [workbenches, setWorkbenches] = useState<Workbench[]>([])
+  const [activeWorkbenchId, setActiveWorkbenchId] = useState<string | null>(null)
 
-  const activeWorkbench = workbenches.find(w => w.id === activeWorkbenchId);
-  const workbenchPath = activeWorkbench?.path || null;
+  const activeWorkbench = workbenches.find((w) => w.id === activeWorkbenchId)
+  const workbenchPath = activeWorkbench?.path || null
 
-  const [services, setServices] = useState<Service[]>([]);
-  const [groups, setGroups] = useState<Group[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  const [defaultIde, setDefaultIde] = useState<string>("vscode");
-  const [availableIdes, setAvailableIdes] = useState<{ id: string, name: string }[]>([]);
-  const [error, setError] = useState<string | null>(null);
+  const [services, setServices] = useState<VantageService[]>([])
+  const [groups, setGroups] = useState<Group[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [isRefreshing, setIsRefreshing] = useState(false)
+  const [defaultIde, setDefaultIde] = useState<string>('vscode')
+  const [availableIdes, setAvailableIdes] = useState<{ id: string; name: string }[]>([])
+  const [error, setError] = useState<string | null>(null)
 
   // UI State
-  const [isLogModalOpen, setIsLogModalOpen] = useState(false);
-  const [selectedService, setSelectedService] = useState<{ name: string, path: string } | null>(null);
-  const [isGroupModalOpen, setIsGroupModalOpen] = useState(false);
-  const [editingGroup, setEditingGroup] = useState<Group | undefined>(undefined);
-  const [loadingIdePaths, setLoadingIdePaths] = useState<string[]>([]);
-  const [envSwitchingPaths, setEnvSwitchingPaths] = useState<string[]>([]);
-  const [isBranchModalOpen, setIsBranchModalOpen] = useState(false);
-  const [branchModalService, setBranchModalService] = useState<{ name: string, path: string, branch?: string } | null>(null);
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
-  const [isHelpModalOpen, setIsHelpModalOpen] = useState(false);
+  const [isLogModalOpen, setIsLogModalOpen] = useState(false)
+  const [selectedService, setSelectedService] = useState<{ name: string; path: string } | null>(
+    null
+  )
+  const [isGroupModalOpen, setIsGroupModalOpen] = useState(false)
+  const [editingGroup, setEditingGroup] = useState<Group | undefined>(undefined)
+  const [loadingIdePaths, setLoadingIdePaths] = useState<string[]>([])
+  const [envSwitchingPaths, setEnvSwitchingPaths] = useState<string[]>([])
+  const [isBranchModalOpen, setIsBranchModalOpen] = useState(false)
+  const [branchModalService, setBranchModalService] = useState<{
+    name: string
+    path: string
+    branch?: string
+  } | null>(null)
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
+  const [isHelpModalOpen, setIsHelpModalOpen] = useState(false)
   const [envModalOpen, setEnvModalOpen] = useState<{
-    isOpen: boolean;
-    servicePath: string;
-    serviceName: string;
-    initialMode?: 'add' | 'edit';
-    discoveredFiles: string[];
+    isOpen: boolean
+    servicePath: string
+    serviceName: string
+    initialMode?: 'add' | 'edit'
+    discoveredFiles: string[]
   }>({
     isOpen: false,
     servicePath: '',
     serviceName: '',
     discoveredFiles: []
-  });
+  })
 
   // Service Settings State
-  const [serviceConfigs, setServiceConfigs] = useState<Record<string, any>>({});
+  const [serviceConfigs, setServiceConfigs] = useState<Record<string, any>>({})
   const [aiSettings, setAiSettings] = useState<AiSettings>({
     mode: 'native',
     ollamaUrl: 'http://localhost:11434',
@@ -111,726 +163,975 @@ function App() {
     cloudProvider: 'openai',
     cloudModel: 'gpt-4o-mini',
     apiKey: ''
-  });
-  const [isAiSettingsModalOpen, setIsAiSettingsModalOpen] = useState(false);
-  const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
-  const [settingsModalService, setSettingsModalService] = useState<{ name: string, path: string } | null>(null);
-  const [isGitProfilesModalOpen, setIsGitProfilesModalOpen] = useState(false);
-  const [isCloneRepoModalOpen, setIsCloneRepoModalOpen] = useState(false);
-  const [isGitPluginsModalOpen, setIsGitPluginsModalOpen] = useState(false);
-  const [isGitMenuOpen, setIsGitMenuOpen] = useState(false);
-  const [isArchivedModalOpen, setIsArchivedModalOpen] = useState(false);
-  const [selectedServicePaths, setSelectedServicePaths] = useState<Set<string>>(new Set());
+  })
+  const [isAiSettingsModalOpen, setIsAiSettingsModalOpen] = useState(false)
+  const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false)
+  const [settingsModalService, setSettingsModalService] = useState<{
+    name: string
+    path: string
+  } | null>(null)
+  const [isGitProfilesModalOpen, setIsGitProfilesModalOpen] = useState(false)
+  const [isCloneRepoModalOpen, setIsCloneRepoModalOpen] = useState(false)
+  const [isGitPluginsModalOpen, setIsGitPluginsModalOpen] = useState(false)
+  const [isGitMenuOpen, setIsGitMenuOpen] = useState(false)
+  const [isArchivedModalOpen, setIsArchivedModalOpen] = useState(false)
+  const [selectedServicePaths, setSelectedServicePaths] = useState<Set<string>>(new Set())
 
-  const [searchResults, setSearchResults] = useState<{ path: string; excerpt: string; name: string }[] | null>(null);
-  const [healthReport, setHealthReport] = useState<string | null>(null);
-  const [isNetworkMapOpen, setIsNetworkMapOpen] = useState(false);
-  const [isAiProcessing, setIsAiProcessing] = useState(false);
-  
-  const [conversations, setConversations] = useState<Conversation[]>([]);
-  const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
-  const [isBotProcessing, setIsBotProcessing] = useState(false);
-  const [isWindowFocused, setIsWindowFocused] = useState(true);
-  const gitMenuRef = useRef<HTMLDivElement>(null);
+  const [searchResults, setSearchResults] = useState<
+    { path: string; excerpt: string; name: string }[] | null
+  >(null)
+  const [healthReport, setHealthReport] = useState<string | null>(null)
+  const [isNetworkMapOpen, setIsNetworkMapOpen] = useState(false)
+  const [isAiProcessing, setIsAiProcessing] = useState(false)
+
+  const [conversations, setConversations] = useState<Conversation[]>([])
+  const [activeConversationId, setActiveConversationId] = useState<string | null>(null)
+  const [isBotProcessing, setIsBotProcessing] = useState(false)
+  const [isWindowFocused, setIsWindowFocused] = useState(true)
+  const [activeOrchestration, setActiveOrchestration] = useState<{
+    groupId: string
+    statuses: Record<string, string>
+  } | null>(null)
+  const [hangingService, setHangingService] = useState<{
+    servicePath: string
+    serviceName: string
+    logPattern: string
+    logs: string[]
+  } | null>(null)
+  const [isOrchestraModalOpen, setIsOrchestraModalOpen] = useState(false)
+  const [isRecording, setIsRecording] = useState(false)
+  const [recordingSeconds, setRecordingSeconds] = useState(0)
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
+  const recordingChunksRef = useRef<Blob[]>([])
+  const recordingTimerRef = useRef<NodeJS.Timeout | null>(null)
+  const gitMenuRef = useRef<HTMLDivElement>(null)
 
   const handleToggleSelect = (path: string) => {
-    setSelectedServicePaths(prev => {
-      const next = new Set(prev);
+    setSelectedServicePaths((prev) => {
+      const next = new Set(prev)
       if (next.has(path)) {
-        next.delete(path);
+        next.delete(path)
       } else {
-        next.add(path);
+        next.add(path)
       }
-      return next;
-    });
-  };
+      return next
+    })
+  }
 
   const handleSelectAll = (select: boolean) => {
     if (select) {
-      setSelectedServicePaths(new Set(services.map(s => s.path)));
+      setSelectedServicePaths(new Set(services.map((s) => s.path)))
     } else {
-      setSelectedServicePaths(new Set());
+      setSelectedServicePaths(new Set())
     }
-  };
+  }
 
   useEffect(() => {
-    loadConfig();
-    fetchAvailableIdes();
-  }, []);
+    loadConfig()
+    fetchAvailableIdes()
+  }, [])
 
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (gitMenuRef.current && !gitMenuRef.current.contains(event.target as Node)) {
-        setIsGitMenuOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
+    const handleOrchestrationUpdate = (
+      data: { groupId: string; statuses: Record<string, string> }
+    ) => {
+      setActiveOrchestration(data)
+      // Do not automatically open modal on update, as it's annoying if user closed it
+    }
+
+    const handleStartupHanging = (data: any) => {
+      setHangingService(data)
+    }
+
+    const unsubs = [
+      window.api.onOrchestrationUpdate(handleOrchestrationUpdate),
+      window.api.onStartupHanging(handleStartupHanging)
+    ]
+
+    return () => {
+      unsubs.forEach(unsub => unsub())
+    }
+  }, [])
 
   useEffect(() => {
     if (activeWorkbenchId && workbenchPath) {
-      fetchData(true); // Deep scan on workbench change
+      fetchData(true) // Deep scan on workbench change
 
       // Refresh data when window returns to focus
       const onFocus = () => {
         // "Light" refresh: uses cache for git status, but deep checks process status
-        fetchData(false);
-      };
+        fetchData(false)
+      }
 
-      window.addEventListener('focus', onFocus);
-      window.addEventListener('blur', () => setIsWindowFocused(false));
+      window.addEventListener('focus', onFocus)
+      window.addEventListener('blur', () => setIsWindowFocused(false))
+
+      // Click outside for menus
+      const handleClickOutside = (e: MouseEvent) => {
+        if (gitMenuRef.current && !gitMenuRef.current.contains(e.target as Node)) {
+          setIsGitMenuOpen(false)
+        }
+      }
+      document.addEventListener('mousedown', handleClickOutside)
+
       return () => {
-        window.removeEventListener('focus', onFocus);
-        window.removeEventListener('blur', () => setIsWindowFocused(false));
-      };
+        window.removeEventListener('focus', onFocus)
+        window.removeEventListener('blur', () => setIsWindowFocused(false))
+        document.removeEventListener('mousedown', handleClickOutside)
+      }
     }
-    return;
-  }, [activeWorkbenchId, workbenchPath]);
+    return
+  }, [activeWorkbenchId, workbenchPath])
 
   // Global Telemetry Polling (Focus-Aware)
   useEffect(() => {
-    if (!workbenchPath || !isWindowFocused) return;
+    if (!workbenchPath || !isWindowFocused) return
 
     const interval = setInterval(() => {
-      fetchData(false); // Light refresh for stats
-    }, 5000);
+      fetchData(false) // Light refresh for stats
+    }, 5000)
 
-    return () => clearInterval(interval);
-  }, [workbenchPath, isWindowFocused, activeWorkbenchId]);
+    return () => clearInterval(interval)
+  }, [workbenchPath, isWindowFocused, activeWorkbenchId])
 
   useEffect(() => {
-    const handleFocus = () => setIsWindowFocused(true);
-    const handleBlur = () => setIsWindowFocused(false);
+    const handleFocus = () => setIsWindowFocused(true)
+    const handleBlur = () => setIsWindowFocused(false)
 
-    window.addEventListener('focus', handleFocus);
-    window.addEventListener('blur', handleBlur);
+    window.addEventListener('focus', handleFocus)
+    window.addEventListener('blur', handleBlur)
 
     return () => {
-      window.removeEventListener('focus', handleFocus);
-      window.removeEventListener('blur', handleBlur);
-    };
-  }, []);
+      window.removeEventListener('focus', handleFocus)
+      window.removeEventListener('blur', handleBlur)
+    }
+  }, [])
 
   const loadConfig = async () => {
     try {
-      const config = await window.api.getConfig();
+      const config = await window.api.getConfig()
       if (config.workbenches && config.workbenches.length > 0) {
-        setWorkbenches(config.workbenches);
-        setActiveWorkbenchId(config.activeWorkbenchId);
+        setWorkbenches(config.workbenches)
+        setActiveWorkbenchId(config.activeWorkbenchId)
       } else if (config.workbenchPath) {
-        const legacyId = "legacy";
-        setWorkbenches([{ id: legacyId, name: "Legacy", path: config.workbenchPath }]);
-        setActiveWorkbenchId(legacyId);
+        const legacyId = 'legacy'
+        setWorkbenches([{ id: legacyId, name: 'Legacy', path: config.workbenchPath }])
+        setActiveWorkbenchId(legacyId)
       }
       if (config.defaultIde) {
-        setDefaultIde(config.defaultIde);
+        setDefaultIde(config.defaultIde)
       }
       if (config.aiSettings) {
-        setAiSettings(config.aiSettings);
+        setAiSettings(config.aiSettings)
       }
       if (config.conversations) {
-        setConversations(config.conversations);
-        setActiveConversationId(config.activeConversationId || null);
+        setConversations(config.conversations)
+        setActiveConversationId(config.activeConversationId || null)
       } else if (config.chatMessages) {
         // Migration: Wrap old chat in a conversation
         const legacyConv = {
           id: 'legacy',
           title: 'Legacy Chat',
-          messages: config.chatMessages.map((m: any) => ({ ...m, timestamp: m.timestamp || Date.now() })),
+          messages: config.chatMessages.map((m: any) => ({
+            ...m,
+            timestamp: m.timestamp || Date.now()
+          })),
           updatedAt: Date.now()
-        };
-        setConversations([legacyConv]);
-        setActiveConversationId('legacy');
+        }
+        setConversations([legacyConv])
+        setActiveConversationId('legacy')
       }
     } catch (err: any) {
-      console.error("Failed to load config:", err);
-      setError(err.message || "Failed to load application configuration");
+      console.error('Failed to load config:', err)
+      setError(err.message || 'Failed to load application configuration')
     } finally {
-      setIsLoading(false);
+      setIsLoading(false)
     }
-  };
+  }
 
   const fetchAvailableIdes = async () => {
-    const ides = await window.api.checkIdes();
-    setAvailableIdes(ides);
-  };
+    const ides = await window.api.checkIdes()
+    setAvailableIdes(ides)
+  }
 
   const handleSelectWorkbench = async () => {
-    const config = await window.api.selectWorkbench();
+    const config = await window.api.selectWorkbench()
     if (config && config.workbenches) {
-      setWorkbenches(config.workbenches);
-      setActiveWorkbenchId(config.activeWorkbenchId);
-      setIsLoading(true);
+      setWorkbenches(config.workbenches)
+      setActiveWorkbenchId(config.activeWorkbenchId)
+      setIsLoading(true)
     }
-  };
+  }
 
   const handleSwitchWorkbench = async (id: string) => {
-    if (id === activeWorkbenchId) return;
-    setActiveWorkbenchId(id);
-    setIsLoading(true);
-    await window.api.updateConfig({ activeWorkbenchId: id });
-  };
+    if (id === activeWorkbenchId) return
+    setActiveWorkbenchId(id)
+    setIsLoading(true)
+    await window.api.updateConfig({ activeWorkbenchId: id })
+  }
 
   const handleRemoveWorkbench = async (e: React.MouseEvent, id: string) => {
-    e.stopPropagation();
-    const newWorkbenches = workbenches.filter(w => w.id !== id);
+    e.stopPropagation()
+    const newWorkbenches = workbenches.filter((w) => w.id !== id)
     if (newWorkbenches.length === 0) {
       // Don't allow removing last workbench if needed, or handle empty state
-      setWorkbenches([]);
-      setActiveWorkbenchId(null);
-      await window.api.updateConfig({ workbenches: [], activeWorkbenchId: null });
+      setWorkbenches([])
+      setActiveWorkbenchId(null)
+      await window.api.updateConfig({ workbenches: [], activeWorkbenchId: null })
     } else {
-      let nextActiveId = activeWorkbenchId;
+      let nextActiveId = activeWorkbenchId
       if (id === activeWorkbenchId) {
-        nextActiveId = newWorkbenches[0].id;
+        nextActiveId = newWorkbenches[0].id
       }
-      setWorkbenches(newWorkbenches);
-      setActiveWorkbenchId(nextActiveId);
-      await window.api.updateConfig({ workbenches: newWorkbenches, activeWorkbenchId: nextActiveId });
+      setWorkbenches(newWorkbenches)
+      setActiveWorkbenchId(nextActiveId)
+      await window.api.updateConfig({
+        workbenches: newWorkbenches,
+        activeWorkbenchId: nextActiveId
+      })
     }
-  };
+  }
 
-  const handleReorderWorkbenches = async (draggedId: string, targetId: string) => {
-    const draggedIdx = workbenches.findIndex(w => w.id === draggedId);
-    const targetIdx = workbenches.findIndex(w => w.id === targetId);
-    if (draggedIdx === -1 || targetIdx === -1) return;
-
-    const newWorkbenches = [...workbenches];
-    const [draggedItem] = newWorkbenches.splice(draggedIdx, 1);
-    newWorkbenches.splice(targetIdx, 0, draggedItem);
-
-    setWorkbenches(newWorkbenches);
-    await window.api.updateConfig({ workbenches: newWorkbenches });
-  };
-
-    const fetchData = async (forceRefresh = false) => {
-    if (!workbenchPath) return;
+  const handleTakeGlobalSnapshot = async () => {
     try {
-      window.api.getGroups({ workbenchId: activeWorkbenchId }).then(groupsData => {
-        setGroups(groupsData.groups || []);
-      }).catch(console.error);
+      const result = await window.api.takeSnapshot()
+      if (result.success) {
+        // Notification logic if exists, otherwise alert
+        alert(`Global Snapshot saved to: ${result.path}`)
+      }
+    } catch (err: any) {
+      alert(`Snapshot failed: ${err.message}`)
+    }
+  }
+
+  const handleStartRecording = async () => {
+    try {
+      const sources = await window.api.getSources()
+      // We'll target the Vantage window if possible, otherwise first screen
+      const vantageSource = sources.find(s => s.name.includes('Vantage')) || sources[0]
+      
+      if (!vantageSource) throw new Error('No recording source found')
+
+      const stream = await (navigator.mediaDevices as any).getUserMedia({
+        audio: false,
+        video: {
+          mandatory: {
+            chromeMediaSource: 'desktop',
+            chromeMediaSourceId: vantageSource.id,
+            minWidth: 1280,
+            maxWidth: 1920,
+            minHeight: 720,
+            maxHeight: 1080
+          }
+        }
+      })
+
+      const mediaRecorder = new MediaRecorder(stream, { mimeType: 'video/webm; codecs=vp9' })
+      mediaRecorderRef.current = mediaRecorder
+      recordingChunksRef.current = []
+
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) {
+          recordingChunksRef.current.push(e.data)
+        }
+      }
+
+      mediaRecorder.onstop = async () => {
+        const blob = new Blob(recordingChunksRef.current, { type: 'video/webm' })
+        const arrayBuffer = await blob.arrayBuffer()
+        
+        const result = await window.api.saveRecording({ buffer: arrayBuffer })
+        if (result.success) {
+          alert(`Recording saved to: ${result.path}`)
+        } else {
+          alert(`Failed to save recording: ${result.error}`)
+        }
+        
+        // Cleanup stream
+        stream.getTracks().forEach(track => track.stop())
+      }
+
+      mediaRecorder.start()
+      setIsRecording(true)
+      setRecordingSeconds(0)
+      
+      recordingTimerRef.current = setInterval(() => {
+        setRecordingSeconds(s => s + 1)
+      }, 1000)
+
+    } catch (err: any) {
+      alert(`Recording failed: ${err.message}`)
+    }
+  }
+
+  const handleStopRecording = () => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      mediaRecorderRef.current.stop()
+    }
+    setIsRecording(false)
+    if (recordingTimerRef.current) {
+      clearInterval(recordingTimerRef.current)
+    }
+  }
+
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60)
+    const secs = seconds % 60
+    return `${mins}:${secs.toString().padStart(2, '0')}`
+  }
+  const handleReorderWorkbenches = async (draggedId: string, targetId: string) => {
+    const draggedIdx = workbenches.findIndex((w) => w.id === draggedId)
+    const targetIdx = workbenches.findIndex((w) => w.id === targetId)
+    if (draggedIdx === -1 || targetIdx === -1) return
+
+    const newWorkbenches = [...workbenches]
+    const [draggedItem] = newWorkbenches.splice(draggedIdx, 1)
+    newWorkbenches.splice(targetIdx, 0, draggedItem)
+
+    setWorkbenches(newWorkbenches)
+    await window.api.updateConfig({ workbenches: newWorkbenches })
+  }
+
+  const fetchData = async (forceRefresh = false) => {
+    if (!workbenchPath) return
+    try {
+      window.api
+        .getGroups({ workbenchId: activeWorkbenchId })
+        .then((groupsData) => {
+          setGroups(groupsData.groups || [])
+        })
+        .catch(console.error)
 
       // Defensively check if the function exists on window.api so the app doesn't crash if the preload script is stale
       if (typeof window.api.getServiceConfigs === 'function') {
-        window.api.getServiceConfigs().then(configsData => {
-          setServiceConfigs(configsData.configs || {});
-        }).catch(console.error);
+        window.api
+          .getServiceConfigs()
+          .then((configsData) => {
+            setServiceConfigs(configsData.configs || {})
+          })
+          .catch(console.error)
       }
 
-      const servicesData = await window.api.getServices(workbenchPath, forceRefresh);
-      setServices(servicesData.services || []);
-      setError(null); // Clear any previous errors on success
+      const servicesData = await window.api.getServices(workbenchPath, forceRefresh)
+      setServices(servicesData.services || [])
+      setError(null) // Clear any previous errors on success
     } catch (err: any) {
-      console.error("Failed to fetch data:", err);
-      setError(err.message || "An unexpected error occurred while fetching service data");
+      console.error('Failed to fetch data:', err)
+      setError(err.message || 'An unexpected error occurred while fetching service data')
     } finally {
-      setIsLoading(false);
-      setIsRefreshing(false);
+      setIsLoading(false)
+      setIsRefreshing(false)
     }
-  };
+  }
 
-  const handleToggleService = async (path: string, action: "start" | "stop" | "log", mode: "dev" | "prod" = "dev") => {
-    if (action === "log") {
-      const svc = services.find((s) => s.path === path);
+  const handleToggleService = async (
+    path: string,
+    action: 'start' | 'stop' | 'log',
+    mode: 'dev' | 'prod' = 'dev'
+  ) => {
+    if (action === 'log') {
+      const svc = services.find((s) => s.path === path)
       if (svc) {
-        setSelectedService({ name: svc.name, path: svc.path });
-        setIsLogModalOpen(true);
+        setSelectedService({ name: svc.name, path: svc.path })
+        setIsLogModalOpen(true)
       }
-      return;
+      return
     }
 
-    const svc = services.find((s) => s.path === path);
-    if (!svc) return;
+    const svc = services.find((s) => s.path === path)
+    if (!svc) return
 
-    setServices(prev => prev.map(s => s.path === path ? { ...s, status: action === "start" ? "starting" : "stopped", mode: action === "start" ? mode : null } : s));
+    setServices((prev) =>
+      prev.map((s) =>
+        s.path === path
+          ? {
+              ...s,
+              status: (s.status === 'ready' || s.status === 'running') ? 'starting' : 'stopped',
+              mode: action === 'start' ? mode : null
+            }
+          : s
+      )
+    )
 
-    const config = serviceConfigs[path] || {};
-    let customCommand = undefined;
-    if (action === "start") {
-      customCommand = mode === 'prod' ? config.prodCommand : config.devCommand;
+    const config = serviceConfigs[path] || {}
+    let customCommand = undefined
+    if (action === 'start') {
+      customCommand = mode === 'prod' ? config.prodCommand : config.devCommand
     }
 
-    await window.api.controlService({ path, action, port: svc.port, mode, customCommand });
-    
+    await window.api.controlService({ path, action, port: svc.port, mode, customCommand })
+
     // Clear selection if stopped? Maybe not, better keep it.
-    fetchData();
-  };
+    fetchData()
+  }
 
   const handleCommand = async (path: string, action: string, payload?: any) => {
     if (action === 'custom-command') {
-      await window.api.npmCommand({ action: 'custom', path, customCommand: payload.command });
-      setTimeout(fetchData, 1000);
-      return;
+      await window.api.npmCommand({ action: 'custom', path, customCommand: payload.command })
+      setTimeout(fetchData, 1000)
+      return
     }
 
     if (action === 'git-checkout-modal') {
-      const svc = services.find((s) => s.path === path);
+      const svc = services.find((s) => s.path === path)
       if (svc) {
-        setBranchModalService({ name: svc.name, path: svc.path, branch: svc.gitBranch });
-        setIsBranchModalOpen(true);
+        setBranchModalService({ name: svc.name, path: svc.path, branch: svc.gitBranch })
+        setIsBranchModalOpen(true)
       }
-      return;
+      return
     }
 
     if (action === 'service-settings') {
-      const svc = services.find((s) => s.path === path);
+      const svc = services.find((s) => s.path === path)
       if (svc) {
-        setSettingsModalService({ name: svc.name, path: svc.path });
-        setIsSettingsModalOpen(true);
+        setSettingsModalService({ name: svc.name, path: svc.path })
+        setIsSettingsModalOpen(true)
       }
-      return;
+      return
     }
 
     if (action === 'open-env-settings' || action === 'env-settings') {
-      const svc = services.find((s) => s.path === path);
+      const svc = services.find((s) => s.path === path)
       if (svc) {
         // Fetch env data to get discovered files immediately
-        window.api.getEnv({ path }).then(res => {
-          setEnvModalOpen({
-            isOpen: true,
-            servicePath: svc.path,
-            serviceName: svc.name,
-            initialMode: (payload?.initialMode === 'add' || payload?.mode === 'add') ? 'add' : 'edit',
-            discoveredFiles: res.discoveredFiles || []
-          });
-        }).catch(err => {
-          console.error("Failed to fetch discovered files", err);
-          setEnvModalOpen({
-            isOpen: true,
-            servicePath: svc.path,
-            serviceName: svc.name,
-            initialMode: (payload?.initialMode === 'add' || payload?.mode === 'add') ? 'add' : 'edit',
-            discoveredFiles: []
-          });
-        });
+        window.api
+          .getEnv({ path })
+          .then((res) => {
+            setEnvModalOpen({
+              isOpen: true,
+              servicePath: svc.path,
+              serviceName: svc.name,
+              initialMode:
+                payload?.initialMode === 'add' || payload?.mode === 'add' ? 'add' : 'edit',
+              discoveredFiles: res.discoveredFiles || []
+            })
+          })
+          .catch((err) => {
+            console.error('Failed to fetch discovered files', err)
+            setEnvModalOpen({
+              isOpen: true,
+              servicePath: svc.path,
+              serviceName: svc.name,
+              initialMode:
+                payload?.initialMode === 'add' || payload?.mode === 'add' ? 'add' : 'edit',
+              discoveredFiles: []
+            })
+          })
       }
-      return;
+      return
     }
 
     if (action === 'switch-env') {
-      setEnvSwitchingPaths(prev => [...prev, path]);
+      setEnvSwitchingPaths((prev) => [...prev, path])
       try {
-        await window.api.switchEnv({ path, profileId: payload.profileId });
-        await fetchData();
+        await window.api.switchEnv({ path, profileId: payload.profileId })
+        await fetchData()
       } finally {
-        setEnvSwitchingPaths(prev => prev.filter(p => p !== path));
+        setEnvSwitchingPaths((prev) => prev.filter((p) => p !== path))
       }
-      return;
+      return
+    }
+
+    if (action === 'mark-service-ready') {
+      await window.api.markServiceReady({ servicePath: path })
+      await fetchData()
+      return
     }
 
     if (action === 'archive') {
-      const svc = services.find((s) => s.path === path);
+      const svc = services.find((s) => s.path === path)
       if (svc && workbenchPath) {
-        await window.api.archiveService({ workbenchPath, serviceName: svc.name });
-        fetchData();
+        await window.api.archiveService({ workbenchPath, serviceName: svc.name })
+        fetchData()
       }
-      return;
+      return
     }
 
     if (action.startsWith('npm-')) {
-      const cmdAction = action.replace('npm-', '');
-      const config = serviceConfigs[path] || {};
-      let customCommand = undefined;
+      const cmdAction = action.replace('npm-', '')
+      const config = serviceConfigs[path] || {}
+      let customCommand = undefined
 
-      if (cmdAction === 'build') customCommand = config.buildCommand;
-      else if (cmdAction === 'install' || cmdAction === 'install-legacy') customCommand = config.installCommand;
+      if (cmdAction === 'build') customCommand = config.buildCommand
+      else if (cmdAction === 'install' || cmdAction === 'install-legacy')
+        customCommand = config.installCommand
 
-      await window.api.npmCommand({ action: cmdAction, path, customCommand });
+      await window.api.npmCommand({ action: cmdAction, path, customCommand })
     } else if (action.startsWith('git-')) {
-      await window.api.gitCommand({ action: action.replace('git-', ''), path, branch: payload?.branch });
+      await window.api.gitCommand({
+        action: action.replace('git-', ''),
+        path,
+        branch: payload?.branch
+      })
     }
 
-    setTimeout(fetchData, 1000);
-  };
+    setTimeout(fetchData, 1000)
+  }
 
   const handleAddService = async () => {
-    if (!workbenchPath) return;
+    if (!workbenchPath) return
     try {
-      const res = await window.api.addService({ workbenchPath });
+      const res = await window.api.addService({ workbenchPath })
       if (res.success) {
-        fetchData();
+        fetchData()
       }
     } catch (err: any) {
-      console.error("Failed to add service:", err);
-      alert(err.message || "Failed to add service.");
+      console.error('Failed to add service:', err)
+      alert(err.message || 'Failed to add service.')
     }
-  };
+  }
 
   const handleCheckoutBranch = async (path: string, branch: string) => {
-    await window.api.gitCommand({ action: 'checkout', path, branch });
-    fetchData(); // refresh services
-  };
+    await window.api.gitCommand({ action: 'checkout', path, branch })
+    fetchData() // refresh services
+  }
 
   const handleSaveServiceConfig = async (path: string, config: any) => {
     if (typeof window.api.saveServiceConfig === 'function') {
-      await window.api.saveServiceConfig({ servicePath: path, config });
+      await window.api.saveServiceConfig({ servicePath: path, config })
     }
-    setServiceConfigs(prev => ({ ...prev, [path]: config }));
-  };
+    setServiceConfigs((prev) => ({ ...prev, [path]: config }))
+  }
 
   const handleOpenIde = async (path: string) => {
-    setLoadingIdePaths(prev => [...prev, path]);
+    setLoadingIdePaths((prev) => [...prev, path])
     try {
-      await window.api.openIde({ path, ide: defaultIde });
+      await window.api.openIde({ path, ide: defaultIde })
     } finally {
       // Small timeout to ensure the user sees the spinner for at least a bit
       setTimeout(() => {
-        setLoadingIdePaths(prev => prev.filter(p => p !== path));
-      }, 1000);
+        setLoadingIdePaths((prev) => prev.filter((p) => p !== path))
+      }, 1000)
     }
-  };
+  }
 
   const handleSetIde = async (ide: string) => {
-    setDefaultIde(ide);
-    await window.api.updateConfig({ defaultIde: ide });
-  };
+    setDefaultIde(ide)
+    await window.api.updateConfig({ defaultIde: ide })
+  }
 
   const handleRefresh = () => {
-    setIsRefreshing(true);
-    fetchData(true); // Manual refresh triggers deep scan
-  };
+    setIsRefreshing(true)
+    fetchData(true) // Manual refresh triggers deep scan
+  }
 
   const handleSaveGroup = async (group: Group, action: 'create' | 'delete', id?: string) => {
     if (action === 'create') {
-      setGroups(prev => {
-        const idx = prev.findIndex(g => g.id === group.id);
+      setGroups((prev) => {
+        const idx = prev.findIndex((g) => g.id === group.id)
         if (idx >= 0) {
-          const newGroups = [...prev];
-          newGroups[idx] = group;
-          return newGroups;
+          const newGroups = [...prev]
+          newGroups[idx] = group
+          return newGroups
         }
-        return [...prev, group];
-      });
+        return [...prev, group]
+      })
     } else if (action === 'delete') {
-      setGroups(prev => prev.filter(g => g.id !== id));
+      setGroups((prev) => prev.filter((g) => g.id !== id))
     }
 
-    await window.api.saveGroups({ workbenchId: activeWorkbenchId, group, action, id });
+    await window.api.saveGroups({ workbenchId: activeWorkbenchId, group, action, id })
     // Groups are already updated optimistically and fetchData will run async
-    fetchData();
-  };
+    fetchData()
+  }
 
   const executeAiCommand = async (prompt: string) => {
-    setIsAiProcessing(true);
+    setIsAiProcessing(true)
     try {
-      const action = parsePrompt(prompt);
+      const action = parsePrompt(prompt)
       if (action.intent === 'unknown') {
-        alert("I'm not sure what you want me to do. Try 'start checked' or 'stop all'.");
-        return;
+        alert("I'm not sure what you want me to do. Try 'start checked' or 'stop all'.")
+        return
       }
 
       if (action.intent === 'search' && action.query) {
-         const { results } = await (window as any).electron.ipcRenderer.invoke('search-docs', { 
-            workbenchPath: workbenches.find(w => w.id === activeWorkbenchId)?.path, 
-            query: action.query 
-         });
-         setSearchResults(results);
-         return;
+        const { results } = await (window as any).electron.ipcRenderer.invoke('search-docs', {
+          workbenchPath: workbenches.find((w) => w.id === activeWorkbenchId)?.path,
+          query: action.query
+        })
+        setSearchResults(results)
+        return
       }
 
       if (action.intent === 'health') {
-          const report = services.map(s => {
-              if (!s.stats) return null;
-              const status = s.stats.cpu > 80 ? "⚠️ High CPU" : s.stats.memory > 500 ? "⚠️ High Memory" : "✅ Healthy";
-              return `${s.name}: ${status} (${s.stats.cpu}% CPU, ${s.stats.memory}MB)`;
-          }).filter(Boolean).join('\n');
-          setHealthReport(report || "No services are currently reporting health data.");
-          return;
+        const report = services
+          .map((s) => {
+            if (!s.stats) return null
+            const status =
+              s.stats.cpu > 80
+                ? '⚠️ High CPU'
+                : s.stats.memory > 500
+                  ? '⚠️ High Memory'
+                  : '✅ Healthy'
+            return `${s.name}: ${status} (${s.stats.cpu}% CPU, ${s.stats.memory}MB)`
+          })
+          .filter(Boolean)
+          .join('\n')
+        setHealthReport(report || 'No services are currently reporting health data.')
+        return
       }
 
       if (action.intent === 'network-map') {
-          setIsNetworkMapOpen(true);
-          return;
+        setIsNetworkMapOpen(true)
+        return
       }
 
-      const targetServices = services.filter(s => {
-        if (action.scope === 'all') return true;
-        if (action.scope === 'checked') return selectedServicePaths.has(s.path);
+      const targetServices = services.filter((s) => {
+        if (action.scope === 'all') return true
+        if (action.scope === 'checked') return selectedServicePaths.has(s.path)
         if (action.scope === 'specific' && action.targetNames) {
-            return action.targetNames.includes(s.name);
+          return action.targetNames.includes(s.name)
         }
-        return false;
-      });
+        return false
+      })
 
       if (targetServices.length === 0) {
-        alert("No services matched your request.");
-        return;
+        alert('No services matched your request.')
+        return
       }
 
-      await Promise.all(targetServices.map(async (service) => {
-        // Handle Git Pull (Workflow)
-        if (action.intent === 'git-pull' || action.intent === 'workflow') {
-            await window.api.gitCommand({ action: 'pull', path: service.path });
-        }
-
-        // Handle Environment switch if specified
-        if (action.environment && service.envProfiles) {
-          const profile = service.envProfiles.find(p => p.name.toUpperCase() === action.environment);
-          if (profile) {
-            await window.api.switchEnv({ path: service.path, profileId: profile.id });
+      await Promise.all(
+        targetServices.map(async (service) => {
+          // Handle Git Pull (Workflow)
+          if (action.intent === 'git-pull' || action.intent === 'workflow') {
+            await window.api.gitCommand({ action: 'pull', path: service.path })
           }
-        }
 
-        // Handle Start/Stop/Restart/Build/Install
-        const config = serviceConfigs[service.path] || {};
-        const mode = (action.environment?.toLowerCase() === 'prod' ? 'prod' : 'dev');
-        
-        if (action.intent === 'start' || action.intent === 'restart') {
-           if (action.intent === 'restart') await window.api.controlService({ path: service.path, action: 'stop' });
-           
-           const customCommand = mode === 'prod' ? config.prodCommand : config.devCommand;
-           await window.api.controlService({ path: service.path, action: 'start', mode, customCommand });
-        } else if (action.intent === 'stop') {
-           await window.api.controlService({ path: service.path, action: 'stop' });
-        } else if (action.intent === 'build') {
-           await window.api.controlService({ path: service.path, action: 'start', mode: 'dev', customCommand: 'npm run build', specificStatus: 'building' });
-        } else if (action.intent === 'install') {
-           await window.api.controlService({ path: service.path, action: 'start', mode: 'dev', customCommand: 'npm install', specificStatus: 'installing' });
-        }
-      }));
+          // Handle Environment switch if specified
+          if (action.environment && service.envProfiles) {
+            const profile = service.envProfiles.find(
+              (p) => p.name.toUpperCase() === action.environment
+            )
+            if (profile) {
+              await window.api.switchEnv({ path: service.path, profileId: profile.id })
+            }
+          }
 
-      await fetchData();
+          // Handle Start/Stop/Restart/Build/Install
+          const config = serviceConfigs[service.path] || {}
+          const mode = action.environment?.toLowerCase() === 'prod' ? 'prod' : 'dev'
+
+          if (action.intent === 'start' || action.intent === 'restart') {
+            if (action.intent === 'restart')
+              await window.api.controlService({ path: service.path, action: 'stop' })
+
+            const customCommand = mode === 'prod' ? config.prodCommand : config.devCommand
+            await window.api.controlService({
+              path: service.path,
+              action: 'start',
+              mode,
+              customCommand
+            })
+          } else if (action.intent === 'stop') {
+            await window.api.controlService({ path: service.path, action: 'stop' })
+          } else if (action.intent === 'build') {
+            await window.api.controlService({
+              path: service.path,
+              action: 'start',
+              mode: 'dev',
+              customCommand: 'npm run build',
+              specificStatus: 'building'
+            })
+          } else if (action.intent === 'install') {
+            await window.api.controlService({
+              path: service.path,
+              action: 'start',
+              mode: 'dev',
+              customCommand: 'npm install',
+              specificStatus: 'installing'
+            })
+          }
+        })
+      )
+
+      await fetchData()
     } catch (err: any) {
-      console.error("AI Command failed:", err);
-      alert(`Command failed: ${err.message}`);
+      console.error('AI Command failed:', err)
+      alert(`Command failed: ${err.message}`)
     } finally {
-      setIsAiProcessing(false);
+      setIsAiProcessing(false)
     }
-  };
+  }
 
   const handleSendMessage = async (content: string) => {
-    let currentConvId = activeConversationId;
-    let currentMessages: ChatMessage[] = [];
-    let updatedConversations = [...conversations];
+    let currentConvId = activeConversationId
+    let currentMessages: ChatMessage[] = []
+    let updatedConversations = [...conversations]
 
     if (!currentConvId) {
       // Auto-create chat if none active
-      const newId = crypto.randomUUID();
+      const newId = crypto.randomUUID()
       const newConv: Conversation = {
         id: newId,
         title: content.slice(0, 30) + (content.length > 30 ? '...' : ''),
         messages: [],
         updatedAt: Date.now()
-      };
-      updatedConversations.push(newConv);
-      currentConvId = newId;
-      setActiveConversationId(newId);
+      }
+      updatedConversations.push(newConv)
+      currentConvId = newId
+      setActiveConversationId(newId)
     }
 
-    const convIndex = updatedConversations.findIndex(c => c.id === currentConvId);
+    const convIndex = updatedConversations.findIndex((c) => c.id === currentConvId)
     if (convIndex >= 0) {
-      currentMessages = [...updatedConversations[convIndex].messages];
+      currentMessages = [...updatedConversations[convIndex].messages]
     }
 
-    const newUserMsg: ChatMessage = { role: 'user', content, timestamp: Date.now() };
-    const messagesWithUser = [...currentMessages, newUserMsg];
-    
+    const newUserMsg: ChatMessage = { role: 'user', content, timestamp: Date.now() }
+    const messagesWithUser = [...currentMessages, newUserMsg]
+
     // Optimistically update
     if (convIndex >= 0) {
-      updatedConversations[convIndex].messages = messagesWithUser;
-      updatedConversations[convIndex].updatedAt = Date.now();
+      updatedConversations[convIndex].messages = messagesWithUser
+      updatedConversations[convIndex].updatedAt = Date.now()
       // Auto-update title if it's the first message and generic
       if (updatedConversations[convIndex].messages.length === 1) {
-        updatedConversations[convIndex].title = content.slice(0, 30) + (content.length > 30 ? '...' : '');
+        updatedConversations[convIndex].title =
+          content.slice(0, 30) + (content.length > 30 ? '...' : '')
       }
-      setConversations(updatedConversations);
+      setConversations(updatedConversations)
     }
 
-    setIsBotProcessing(true);
+    setIsBotProcessing(true)
 
     try {
-      const systemContext = services.map(s => 
-        `${s.name} (${s.status})${s.port ? ` at port ${s.port}` : ''}`
-      ).join(', ');
+      const systemContext = services
+        .map((s) => `${s.name} (${s.status})${s.port ? ` at port ${s.port}` : ''}`)
+        .join(', ')
 
-      const response = await AiOrchestrator.chat(messagesWithUser, aiSettings, systemContext, activeWorkbench?.path);
-      
-      const newBotMsg: ChatMessage = { role: 'assistant', content: response, timestamp: Date.now() };
-      const finalMsgList = [...messagesWithUser, newBotMsg];
+      const response = await AiOrchestrator.chat(
+        messagesWithUser,
+        aiSettings,
+        systemContext,
+        activeWorkbench?.path
+      )
 
-      setConversations(prev => {
-        const next = [...prev];
-        const idx = next.findIndex(c => c.id === currentConvId);
+      const newBotMsg: ChatMessage = { role: 'assistant', content: response, timestamp: Date.now() }
+      const finalMsgList = [...messagesWithUser, newBotMsg]
+
+      setConversations((prev) => {
+        const next = [...prev]
+        const idx = next.findIndex((c) => c.id === currentConvId)
         if (idx >= 0) {
-          next[idx].messages = finalMsgList;
-          next[idx].updatedAt = Date.now();
+          next[idx].messages = finalMsgList
+          next[idx].updatedAt = Date.now()
         }
         // Persist to backend asynchronously
-        window.api.updateConfig({ 
+        window.api.updateConfig({
           conversations: next,
-          activeConversationId: currentConvId 
-        });
-        return next;
-      });
-      
+          activeConversationId: currentConvId
+        })
+        return next
+      })
     } catch (err: any) {
-      console.error("Chat failed:", err);
+      console.error('Chat failed:', err)
       // Handle error in active messages
     } finally {
-      setIsBotProcessing(false);
+      setIsBotProcessing(false)
     }
-  };
+  }
 
   const handleNewChat = () => {
-    const newId = crypto.randomUUID();
+    const newId = crypto.randomUUID()
     const newConv: Conversation = {
       id: newId,
-      title: "New Conversation",
+      title: 'New Conversation',
       messages: [],
       updatedAt: Date.now()
-    };
-    const newConvs = [newConv, ...conversations];
-    setConversations(newConvs);
-    setActiveConversationId(newId);
-    window.api.updateConfig({ conversations: newConvs, activeConversationId: newId });
-  };
+    }
+    const newConvs = [newConv, ...conversations]
+    setConversations(newConvs)
+    setActiveConversationId(newId)
+    window.api.updateConfig({ conversations: newConvs, activeConversationId: newId })
+  }
 
   const handleDeleteChat = async (id: string) => {
-    const nextConvs = conversations.filter(c => c.id !== id);
-    setConversations(nextConvs);
+    const nextConvs = conversations.filter((c) => c.id !== id)
+    setConversations(nextConvs)
     if (activeConversationId === id) {
-      setActiveConversationId(nextConvs.length > 0 ? nextConvs[0].id : null);
+      setActiveConversationId(nextConvs.length > 0 ? nextConvs[0].id : null)
     }
-    window.api.updateConfig({ 
-      conversations: nextConvs, 
-      activeConversationId: activeConversationId === id ? (nextConvs.length > 0 ? nextConvs[0].id : null) : activeConversationId 
-    });
-  };
+    window.api.updateConfig({
+      conversations: nextConvs,
+      activeConversationId:
+        activeConversationId === id
+          ? nextConvs.length > 0
+            ? nextConvs[0].id
+            : null
+          : activeConversationId
+    })
+  }
 
   const handleClearChatHistory = async () => {
-      setConversations([]);
-      setActiveConversationId(null);
-      await window.api.updateConfig({ conversations: [], activeConversationId: null });
-  };
+    setConversations([])
+    setActiveConversationId(null)
+    await window.api.updateConfig({ conversations: [], activeConversationId: null })
+  }
 
   const handleExportConfig = async () => {
-    const result = await window.api.exportConfig();
+    const result = await window.api.exportConfig()
     if (result.success) {
-      alert(`Configuration exported successfully to: ${result.path}`);
+      alert(`Configuration exported successfully to: ${result.path}`)
     }
-  };
+  }
 
   const handleImportConfig = async () => {
-    await window.api.importConfig();
+    await window.api.importConfig()
     // App will relaunch on success via main process
-  };
+  }
 
   const handleBotAction = async (intent: string, serviceName: string) => {
-    const service = services.find(s => s.name.toLowerCase() === serviceName.toLowerCase());
+    const service = services.find((s) => s.name.toLowerCase() === serviceName.toLowerCase())
     if (!service) {
-      alert(`Service "${serviceName}" not found in current workbench.`);
-      return;
+      alert(`Service "${serviceName}" not found in current workbench.`)
+      return
     }
 
     try {
       if (intent === 'start' || intent === 'stop' || intent === 'restart') {
-        const action = intent === 'restart' ? 'restart' : intent;
-        const config = serviceConfigs[service.path] || {};
-        const mode = config.defaultMode || "dev";
-        const customCommand = mode === 'prod' ? config.prodCommand : config.devCommand;
+        const action = intent === 'restart' ? 'restart' : intent
+        const config = serviceConfigs[service.path] || {}
+        const mode = config.defaultMode || 'dev'
+        const customCommand = mode === 'prod' ? config.prodCommand : config.devCommand
 
-        await window.api.controlService({ 
-          path: service.path, 
-          action: action === 'restart' ? 'start' : action, 
-          mode, 
-          customCommand 
-        });
-        
-        notifyAssistant(`✅ Executed ${intent} for **${service!.name}**.`);
-        
-        fetchData();
+        await window.api.controlService({
+          path: service.path,
+          action: action === 'restart' ? 'start' : action,
+          mode,
+          customCommand
+        })
+
+        notifyAssistant(`✅ Executed ${intent} for **${service!.name}**.`)
+
+        fetchData()
       }
     } catch (err: any) {
-      alert(`Action failed: ${err.message}`);
+      alert(`Action failed: ${err.message}`)
     }
 
     // Special handlers for file actions (don't require a 'service' match necessarily)
     if (intent === 'create-file' || intent === 'fix-file') {
-       try {
-          if (!activeWorkbench) return;
-          const [relPath, ...contentParts] = serviceName.split('|');
-          const content = contentParts.join('|'); // Rejoin in case content had pipes
-          
-          // Construct full path
-          const fullPath = activeWorkbench.path + (activeWorkbench.path.endsWith('\\') || activeWorkbench.path.endsWith('/') ? '' : '/') + relPath;
-          
-          await window.api.fsWriteFile({ filePath: fullPath, content });
-          
-          notifyAssistant(`✅ Successfully ${intent === 'create-file' ? 'created' : 'applied fix to'} \`${relPath}\`.`);
-       } catch (err: any) {
-          alert(`File action failed: ${err.message}`);
-       }
+      try {
+        if (!activeWorkbench) return
+        const [relPath, ...contentParts] = serviceName.split('|')
+        const content = contentParts.join('|') // Rejoin in case content had pipes
+
+        // Construct full path
+        const fullPath =
+          activeWorkbench.path +
+          (activeWorkbench.path.endsWith('\\') || activeWorkbench.path.endsWith('/') ? '' : '/') +
+          relPath
+
+        await window.api.fsWriteFile({ filePath: fullPath, content })
+
+        notifyAssistant(
+          `✅ Successfully ${intent === 'create-file' ? 'created' : 'applied fix to'} \`${relPath}\`.`
+        )
+      } catch (err: any) {
+        alert(`File action failed: ${err.message}`)
+      }
     }
-  };
+  }
 
   const notifyAssistant = (text: string) => {
-    setConversations(prev => {
-      const next = [...prev];
-      const idx = next.findIndex(c => c.id === activeConversationId);
+    setConversations((prev) => {
+      const next = [...prev]
+      const idx = next.findIndex((c) => c.id === activeConversationId)
       if (idx >= 0) {
-        next[idx].messages = [...next[idx].messages, { role: 'assistant', content: text, timestamp: Date.now() }];
-        next[idx].updatedAt = Date.now();
-        window.api.updateConfig({ conversations: next });
+        next[idx].messages = [
+          ...next[idx].messages,
+          { role: 'assistant', content: text, timestamp: Date.now() }
+        ]
+        next[idx].updatedAt = Date.now()
+        window.api.updateConfig({ conversations: next })
       }
-      return next;
-    });
-  };
+      return next
+    })
+  }
 
-  const handleGroupAction = async (groupId: string, action: "start" | "stop") => {
-    const group = groups.find(g => g.id === groupId);
-    if (!group) return;
+  const handleGroupAction = async (groupId: string, action: 'start' | 'stop') => {
+    const group = groups.find((g) => g.id === groupId)
+    if (!group) return
 
-    const targetStatus = action === 'start' ? 'starting' : 'stopped';
+    const targetStatus = action === 'start' ? 'starting' : 'stopped'
 
-    setServices(prev => prev.map(s => {
-      if (group.servicePaths.includes(s.path)) {
-        const activeMode = group.serviceModes?.[s.path] || "dev";
-        return { ...s, status: targetStatus, mode: action === 'start' ? activeMode : null };
-      }
-      return s;
-    }));
-
-    await Promise.all(group.servicePaths.map(async path => {
-      const service = services.find(s => s.path === path);
-      const activeMode = group.serviceModes?.[path] || "dev";
-      const envId = group.serviceEnvs?.[path];
-
-      if (action === 'start' && envId) {
-        try {
-          await window.api.switchEnv({ path, profileId: envId });
-        } catch (err) {
-          console.error(`Failed to switch environment for ${path}:`, err);
+    setServices((prev) =>
+      prev.map((s) => {
+        if (group.servicePaths.includes(s.path)) {
+          const activeMode = group.serviceModes?.[s.path] || 'dev'
+          return { ...s, status: targetStatus, mode: action === 'start' ? activeMode : null }
         }
-      }
+        return s
+      })
+    )
 
-      const config = serviceConfigs[path] || {};
-      const customCommand = action === 'start' ? (activeMode === 'prod' ? config.prodCommand : config.devCommand) : undefined;
+    await Promise.all(
+      group.servicePaths.map(async (path) => {
+        const service = services.find((s) => s.path === path)
+        const activeMode = group.serviceModes?.[path] || 'dev'
+        const envId = group.serviceEnvs?.[path]
 
-      return window.api.controlService({
-        path,
-        action,
-        port: service?.port,
-        mode: activeMode,
-        customCommand
-      });
-    }));
+        if (action === 'start' && envId) {
+          try {
+            await window.api.switchEnv({ path, profileId: envId })
+          } catch (err) {
+            console.error(`Failed to switch environment for ${path}:`, err)
+          }
+        }
 
-    fetchData();
-  };
+        const config = serviceConfigs[path] || {}
+        const customCommand =
+          action === 'start'
+            ? activeMode === 'prod'
+              ? config.prodCommand
+              : config.devCommand
+            : undefined
+
+        return window.api.controlService({
+          path,
+          action,
+          port: service?.port,
+          mode: activeMode,
+          customCommand
+        })
+      })
+    )
+
+    fetchData()
+  }
 
   const openCreateGroupModal = () => {
-    setEditingGroup(undefined);
-    setIsGroupModalOpen(true);
-  };
+    setEditingGroup(undefined)
+    setIsGroupModalOpen(true)
+  }
 
   const openEditGroupModal = (groupId: string) => {
-    const group = groups.find(g => g.id === groupId);
+    const group = groups.find((g) => g.id === groupId)
     if (group) {
-      setEditingGroup(group);
-      setIsGroupModalOpen(true);
+      setEditingGroup(group)
+      setIsGroupModalOpen(true)
     }
-  };
+  }
+
+  const handleRunCluster = async (groupId: string) => {
+    if (!activeWorkbenchId) return
+    setActiveOrchestration({ groupId, statuses: {} })
+    setIsOrchestraModalOpen(true)
+    await window.api.runCluster({ workbenchId: activeWorkbenchId, groupId, allServices: services })
+  }
+
+  const handleAbortCluster = async () => {
+    await window.api.abortCluster()
+    // We don't set activeOrchestration to null here,
+    // so the user can see the 'aborted' status in the modal.
+    setHangingService(null)
+    fetchData()
+  }
+
+  const handleMarkReady = async (servicePath: string) => {
+    await window.api.markServiceReady({ servicePath })
+    setHangingService(null)
+  }
 
   if (isLoading && !workbenchPath) {
     return (
@@ -839,10 +1140,12 @@ function App() {
           <div className="h-16 w-16 rounded-2xl bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center shadow-[0_0_20px_rgba(34,211,238,0.15)]">
             <Loader2 className="h-8 w-8 animate-spin text-cyan-400" />
           </div>
-          <p className="text-slate-400 font-bold tracking-widest uppercase text-xs animate-pulse">Initializing Vantage...</p>
+          <p className="text-slate-400 font-bold tracking-widest uppercase text-xs animate-pulse">
+            Initializing Vantage...
+          </p>
         </div>
       </div>
-    );
+    )
   }
 
   if (error) {
@@ -851,8 +1154,13 @@ function App() {
         <div className="h-20 w-20 rounded-3xl bg-red-500/10 border border-red-500/30 flex items-center justify-center mb-6 shadow-[0_0_30px_rgba(239,68,68,0.1)]">
           <Terminal className="h-10 w-10 text-red-400" />
         </div>
-        <h1 className="text-3xl font-black text-white mb-2 tracking-tight">System <span className="text-red-500">Error</span></h1>
-        <p className="text-slate-400 max-w-md mx-auto mb-8 font-medium">Vantage encountered a critical issue while initializing the workspace. Check your logs for more details.</p>
+        <h1 className="text-3xl font-black text-white mb-2 tracking-tight">
+          System <span className="text-red-500">Error</span>
+        </h1>
+        <p className="text-slate-400 max-w-md mx-auto mb-8 font-medium">
+          Vantage encountered a critical issue while initializing the workspace. Check your logs for
+          more details.
+        </p>
         <div className="bg-slate-900/50 p-4 rounded-xl border border-slate-800/60 max-w-lg w-full mb-8 text-left font-mono">
           <p className="text-red-400 text-sm whitespace-pre-wrap">{error}</p>
         </div>
@@ -863,7 +1171,7 @@ function App() {
           Attempt Re-initialization
         </button>
       </div>
-    );
+    )
   }
 
   if (!workbenchPath) {
@@ -885,73 +1193,83 @@ function App() {
           </button>
         </div>
       </div>
-    );
+    )
   }
 
   return (
     <main className="min-h-screen bg-[#0B0F19] p-4 pt-8 text-slate-200 relative overflow-x-hidden bg-vantage-mesh text-center lg:text-left transition-all">
       <div className="fixed inset-0 z-0 pointer-events-none flex items-center justify-center overflow-hidden opacity-[0.08] dark:opacity-[0.12]">
-        <img src={logo} alt="" className="w-2/3 min-w-[800px] h-auto object-contain blur-[2px] transition-all duration-1000" />
+        <img
+          src={logo}
+          alt=""
+          className="w-2/3 min-w-[800px] h-auto object-contain blur-[2px] transition-all duration-1000"
+        />
       </div>
       <div className="mx-auto max-w-7xl relative z-10 transition-all">
         <header className="px-[20px] fixed top-0 left-0 w-full flex flex-col lg:flex-row items-center justify-between gap-4 py-3 border-b border-slate-800/60 backdrop-blur-md z-50 bg-[#0B0F19]/95 transition-all">
           <div className="flex flex-col sm:flex-row items-center gap-4">
-          <div className="w-12 h-12 rounded-xl bg-slate-900/40 backdrop-blur-md shadow-2xl border border-slate-700/50 p-2 flex items-center justify-center transform hover:scale-105 transition-all">
-            <img src={logo} alt="Vantage" className="w-full h-full object-contain drop-shadow-[0_0_15px_rgba(14,165,233,0.4)]" />
-          </div>
-          <div>
-            <h1 className="text-3xl font-black tracking-tighter text-white">
-              <span className="bg-gradient-to-r from-indigo-400 via-cyan-400 to-sky-400 bg-clip-text text-transparent">Vantage</span> Dashboard
-            </h1>
-
-            {/* Workbench Tabs */}
-            <div className="flex flex-wrap items-center gap-2 mt-2">
-              {workbenches.map(wb => (
-                <div
-                  key={wb.id}
-                  draggable
-                  onDragStart={(e) => {
-                    e.dataTransfer.setData("workbenchId", wb.id);
-                  }}
-                  onDragOver={(e) => {
-                    e.preventDefault();
-                  }}
-                  onDrop={(e) => {
-                    e.preventDefault();
-                    const draggedId = e.dataTransfer.getData("workbenchId");
-                    if (draggedId && draggedId !== wb.id) {
-                      handleReorderWorkbenches(draggedId, wb.id);
-                    }
-                  }}
-                  className={`flex items-center gap-1 px-3 py-1 text-[11px] font-bold rounded-lg transition-all cursor-move ${wb.id === activeWorkbenchId ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 shadow-[0_0_10px_rgba(34,211,238,0.2)]' : 'bg-slate-800/40 text-slate-400 overflow-hidden border border-slate-700/50 hover:bg-slate-700 hover:text-white'}`}
-                >
-                  <button
-                    onClick={() => handleSwitchWorkbench(wb.id)}
-                    title={wb.path}
-                    className="flex-1 text-left whitespace-nowrap overflow-hidden"
-                  >
-                    {wb.name}
-                  </button>
-                  <button
-                    onClick={(e) => handleRemoveWorkbench(e, wb.id)}
-                    className="p-0.5 hover:text-red-400 transition-colors"
-                  >
-                    <X className="h-3 w-3" />
-                  </button>
-                </div>
-              ))}
-              <button
-                onClick={handleSelectWorkbench}
-                title="Add Workspace"
-                className="px-3 py-1 bg-slate-800/40 border border-slate-700/50 rounded-lg text-slate-400 hover:text-cyan-400 hover:border-cyan-500/50 transition-all flex items-center gap-2 text-[10px] font-bold"
-              >
-                <Plus className="h-3.5 w-3.5" />
-                <span>New Workbench</span>
-              </button>
+            <div className="w-12 h-12 rounded-xl bg-slate-900/40 backdrop-blur-md shadow-2xl border border-slate-700/50 p-2 flex items-center justify-center transform hover:scale-105 transition-all">
+              <img
+                src={logo}
+                alt="Vantage"
+                className="w-full h-full object-contain drop-shadow-[0_0_15px_rgba(14,165,233,0.4)]"
+              />
             </div>
+            <div>
+              <h1 className="text-3xl font-black tracking-tighter text-white">
+                <span className="bg-gradient-to-r from-indigo-400 via-cyan-400 to-sky-400 bg-clip-text text-transparent">
+                  Vantage
+                </span>{' '}
+                Dashboard
+              </h1>
 
+              {/* Workbench Tabs */}
+              <div className="flex flex-wrap items-center gap-2 mt-2">
+                {workbenches.map((wb) => (
+                  <div
+                    key={wb.id}
+                    draggable
+                    onDragStart={(e) => {
+                      e.dataTransfer.setData('workbenchId', wb.id)
+                    }}
+                    onDragOver={(e) => {
+                      e.preventDefault()
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault()
+                      const draggedId = e.dataTransfer.getData('workbenchId')
+                      if (draggedId && draggedId !== wb.id) {
+                        handleReorderWorkbenches(draggedId, wb.id)
+                      }
+                    }}
+                    className={`flex items-center gap-1 px-3 py-1 text-[11px] font-bold rounded-lg transition-all cursor-move ${wb.id === activeWorkbenchId ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 shadow-[0_0_10px_rgba(34,211,238,0.2)]' : 'bg-slate-800/40 text-slate-400 overflow-hidden border border-slate-700/50 hover:bg-slate-700 hover:text-white'}`}
+                  >
+                    <button
+                      onClick={() => handleSwitchWorkbench(wb.id)}
+                      title={wb.path}
+                      className="flex-1 text-left whitespace-nowrap overflow-hidden"
+                    >
+                      {wb.name}
+                    </button>
+                    <button
+                      onClick={(e) => handleRemoveWorkbench(e, wb.id)}
+                      className="p-0.5 hover:text-red-400 transition-colors"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </div>
+                ))}
+                <button
+                  onClick={handleSelectWorkbench}
+                  title="Add Workspace"
+                  className="px-3 py-1 bg-slate-800/40 border border-slate-700/50 rounded-lg text-slate-400 hover:text-cyan-400 hover:border-cyan-500/50 transition-all flex items-center gap-2 text-[10px] font-bold"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  <span>New Workbench</span>
+                </button>
+              </div>
+            </div>
           </div>
-        </div>
 
           <div className="flex flex-wrap items-center justify-center gap-3 w-full lg:w-auto mt-2 lg:mt-0">
             <div className="flex items-center gap-2 bg-slate-900/60 border border-slate-700/50 rounded-xl px-4 py-2.5 shadow-inner backdrop-blur-md group hover:border-cyan-500/30 transition-all">
@@ -963,11 +1281,19 @@ function App() {
                 title="Target IDE"
               >
                 {availableIdes.length > 0 ? (
-                  availableIdes.map(ide => (
-                    <option key={ide.id} value={ide.id} className="bg-slate-900 text-white font-sans">{ide.name}</option>
+                  availableIdes.map((ide) => (
+                    <option
+                      key={ide.id}
+                      value={ide.id}
+                      className="bg-slate-900 text-white font-sans"
+                    >
+                      {ide.name}
+                    </option>
                   ))
                 ) : (
-                  <option value="" className="bg-slate-900">No IDEs</option>
+                  <option value="" className="bg-slate-900">
+                    No IDEs
+                  </option>
                 )}
               </select>
             </div>
@@ -986,9 +1312,13 @@ function App() {
                 onClick={() => setIsGitMenuOpen(!isGitMenuOpen)}
                 className={`flex items-center gap-2 px-5 py-2.5 rounded-xl border transition-all font-black text-sm shadow-lg group ${isGitMenuOpen ? 'bg-indigo-600 text-white border-indigo-500 shadow-indigo-500/20' : 'bg-slate-900/60 text-slate-300 border-slate-700/50 hover:border-indigo-500/50 hover:text-white'}`}
               >
-                <Github className={`h-4 w-4 transition-transform duration-300 ${isGitMenuOpen ? 'rotate-12' : 'group-hover:rotate-12'}`} />
+                <Github
+                  className={`h-4 w-4 transition-transform duration-300 ${isGitMenuOpen ? 'rotate-12' : 'group-hover:rotate-12'}`}
+                />
                 <span>Git</span>
-                <ChevronDown className={`h-4 w-4 opacity-50 transition-transform duration-300 ${isGitMenuOpen ? 'rotate-180' : ''}`} />
+                <ChevronDown
+                  className={`h-4 w-4 opacity-50 transition-transform duration-300 ${isGitMenuOpen ? 'rotate-180' : ''}`}
+                />
               </button>
 
               {isGitMenuOpen && (
@@ -996,8 +1326,8 @@ function App() {
                   <div className="p-2 space-y-1">
                     <button
                       onClick={() => {
-                        setIsCloneRepoModalOpen(true);
-                        setIsGitMenuOpen(false);
+                        setIsCloneRepoModalOpen(true)
+                        setIsGitMenuOpen(false)
                       }}
                       className="w-full flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-purple-500/10 text-slate-300 hover:text-purple-400 transition-all group/item text-left"
                     >
@@ -1012,8 +1342,8 @@ function App() {
 
                     <button
                       onClick={() => {
-                        setIsGitProfilesModalOpen(true);
-                        setIsGitMenuOpen(false);
+                        setIsGitProfilesModalOpen(true)
+                        setIsGitMenuOpen(false)
                       }}
                       className="w-full flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-orange-500/10 text-slate-300 hover:text-orange-400 transition-all group/item text-left"
                     >
@@ -1028,8 +1358,8 @@ function App() {
 
                     <button
                       onClick={() => {
-                        setIsGitPluginsModalOpen(true);
-                        setIsGitMenuOpen(false);
+                        setIsGitPluginsModalOpen(true)
+                        setIsGitMenuOpen(false)
                       }}
                       className="w-full flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-cyan-500/10 text-slate-300 hover:text-cyan-400 transition-all group/item text-left"
                     >
@@ -1046,18 +1376,36 @@ function App() {
               )}
             </div>
 
-            {/* 
-              We removed the old "Switch Workspace" button from here since we use the
-              compact tabs above the title. 
-            */}
+            {/* Global Media Tools (Snapshot | Recorder) */}
+            <div className="flex items-center gap-0.5 bg-slate-900/60 rounded-xl border border-slate-700/50 shadow-xl overflow-hidden p-0.5 ml-2">
+              <button
+                onClick={handleTakeGlobalSnapshot}
+                className="p-2.5 text-slate-400 hover:text-cyan-400 hover:bg-slate-800/50 transition-all active:scale-95 group"
+                title="Take Global Snapshot"
+              >
+                <Camera className="h-5 w-5 group-hover:scale-110 transition-transform" />
+              </button>
+              <div className="w-px h-6 bg-slate-700/50" />
+              <button
+                onClick={isRecording ? handleStopRecording : handleStartRecording}
+                className={`p-2.5 transition-all active:scale-95 group ${isRecording ? 'text-red-500 hover:text-red-400 hover:bg-red-500/10' : 'text-slate-400 hover:text-red-400 hover:bg-slate-800/50'}`}
+                title={isRecording ? "Stop Recording" : "Start Global Recording"}
+              >
+                {isRecording ? (
+                  <Square className="h-5 w-5 fill-red-500 animate-pulse" />
+                ) : (
+                  <Video className="h-5 w-5 group-hover:scale-110 transition-transform" />
+                )}
+              </button>
+            </div>
 
             <button
               onClick={handleRefresh}
-              className={`flex items-center justify-center rounded-xl bg-slate-900/60 p-2.5 border border-slate-700/50 text-slate-400 shadow-xl hover:bg-slate-800 hover:text-cyan-400 transition-all ${isRefreshing ? "opacity-50" : ""} active:scale-95`}
+              className={`flex items-center justify-center rounded-xl bg-slate-900/60 p-2.5 border border-slate-700/50 text-slate-400 shadow-xl hover:bg-slate-800 hover:text-cyan-400 transition-all ${isRefreshing ? 'opacity-50' : ''} active:scale-95`}
               disabled={isRefreshing}
               title="Rescan Channels"
             >
-              <RefreshCw className={`h-5 w-5 ${isRefreshing ? "animate-spin" : ""}`} />
+              <RefreshCw className={`h-5 w-5 ${isRefreshing ? 'animate-spin' : ''}`} />
             </button>
             <button
               onClick={() => setIsHelpModalOpen(true)}
@@ -1079,13 +1427,13 @@ function App() {
 
         <div className="space-y-8 mt-24">
           <section className="max-w-4xl mx-auto">
-            <CommandBar 
-              onExecute={executeAiCommand} 
-              isProcessing={isAiProcessing} 
-              selectedCount={selectedServicePaths.size} 
+            <CommandBar
+              onExecute={executeAiCommand}
+              isProcessing={isAiProcessing}
+              selectedCount={selectedServicePaths.size}
             />
           </section>
-          
+
           {groups.length > 0 && (
             <section>
               <h2 className="text-2xl font-bold tracking-tight text-white mb-8 flex items-center gap-4">
@@ -1095,7 +1443,7 @@ function App() {
                 Project Clusters
               </h2>
               <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                {groups.map(group => (
+                {groups.map((group) => (
                   <GroupCard
                     key={group.id}
                     id={group.id}
@@ -1103,8 +1451,21 @@ function App() {
                     serviceCount={group.servicePaths.length}
                     modes={group.serviceModes}
                     onRun={(id) => handleGroupAction(id, 'start')}
+                    onRunCluster={handleRunCluster} // New
                     onStop={(id) => handleGroupAction(id, 'stop')}
                     onEdit={openEditGroupModal}
+                    onOpenOrchestration={() => setIsOrchestraModalOpen(true)}
+                    isOrchestrating={
+                      activeOrchestration?.groupId === group.id &&
+                      Object.values(activeOrchestration.statuses).some(
+                        (s) => !['ready', 'error', 'aborted', 'port-conflict'].includes(s)
+                      )
+                    }
+                    orchestrationStatus={
+                      activeOrchestration?.groupId === group.id
+                        ? activeOrchestration.statuses
+                        : undefined
+                    }
                   />
                 ))}
               </div>
@@ -1157,9 +1518,18 @@ function App() {
             </div>
 
             {isLoading && services.length === 0 ? (
-              <div className={viewMode === 'grid' ? "grid gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" : "flex flex-col gap-4"}>
+              <div
+                className={
+                  viewMode === 'grid'
+                    ? 'grid gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'
+                    : 'flex flex-col gap-4'
+                }
+              >
                 {[1, 2, 3, 4].map((i) => (
-                  <div key={i} className={`animate-pulse rounded-xl bg-gray-200 dark:bg-neutral-800 ${viewMode === 'grid' ? 'h-48' : 'h-24'}`} />
+                  <div
+                    key={i}
+                    className={`animate-pulse rounded-xl bg-gray-200 dark:bg-neutral-800 ${viewMode === 'grid' ? 'h-48' : 'h-24'}`}
+                  />
                 ))}
               </div>
             ) : services.length === 0 ? (
@@ -1168,7 +1538,10 @@ function App() {
                   <Search className="h-10 w-10 text-slate-500 group-hover:text-cyan-400 transition-all" />
                 </div>
                 <h3 className="text-xl font-bold text-white mb-2">No Active Channels Found</h3>
-                <p className="text-slate-500 max-w-sm mx-auto mb-8">This workspace doesn't seem to contain any services. Select a different entry point to begin monitoring.</p>
+                <p className="text-slate-500 max-w-sm mx-auto mb-8">
+                  This workspace doesn't seem to contain any services. Select a different entry
+                  point to begin monitoring.
+                </p>
                 <button
                   onClick={handleSelectWorkbench}
                   className="px-6 py-3 rounded-xl bg-cyan-500 text-slate-950 font-black text-sm hover:bg-cyan-400 shadow-[0_0_20px_rgba(34,211,238,0.3)] transition-all active:scale-95"
@@ -1177,19 +1550,32 @@ function App() {
                 </button>
               </div>
             ) : (
-              <div className={viewMode === 'grid' ? "grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" : "flex flex-col gap-2"}>
+              <div
+                className={
+                  viewMode === 'grid'
+                    ? 'grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'
+                    : 'flex flex-col gap-2'
+                }
+              >
                 {viewMode === 'list' && (
                   <div className="flex items-center gap-4 px-6 py-2 text-[10px] font-black text-slate-500 uppercase tracking-widest border-b border-slate-800/50 mb-2">
                     <button
                       onClick={() => handleSelectAll(selectedServicePaths.size !== services.length)}
                       className={cn(
-                        "h-4 w-4 rounded border transition-all flex items-center justify-center shrink-0",
+                        'h-4 w-4 rounded border transition-all flex items-center justify-center shrink-0',
                         selectedServicePaths.size === services.length && services.length > 0
-                          ? "bg-cyan-500 border-cyan-400 text-slate-950"
-                          : "bg-slate-800 border-slate-700 text-transparent hover:border-cyan-500/50"
+                          ? 'bg-cyan-500 border-cyan-400 text-slate-950'
+                          : 'bg-slate-800 border-slate-700 text-transparent hover:border-cyan-500/50'
                       )}
                     >
-                      <Check className={cn("h-3 w-3 stroke-[3px]", (selectedServicePaths.size !== services.length || services.length === 0) && "opacity-0")} />
+                      <Check
+                        className={cn(
+                          'h-3 w-3 stroke-[3px]',
+                          (selectedServicePaths.size !== services.length ||
+                            services.length === 0) &&
+                            'opacity-0'
+                        )}
+                      />
                     </button>
                     <div className="flex-1">Service Name</div>
                     <div className="w-20 text-center">Port</div>
@@ -1199,7 +1585,7 @@ function App() {
                   </div>
                 )}
                 {services.map((service) => {
-                  const config = serviceConfigs[service.path] || {};
+                  const config = serviceConfigs[service.path] || {}
                   return viewMode === 'grid' ? (
                     <ServiceCard
                       key={service.path}
@@ -1248,8 +1634,8 @@ function App() {
       <LogModal
         isOpen={isLogModalOpen}
         onClose={() => setIsLogModalOpen(false)}
-        serviceName={selectedService?.name || ""}
-        servicePath={selectedService?.path || ""}
+        serviceName={selectedService?.name || ''}
+        servicePath={selectedService?.path || ''}
         aiSettings={aiSettings}
         onToggle={handleToggleService}
         onCommand={handleCommand}
@@ -1286,19 +1672,19 @@ function App() {
       <ArchivedServicesModal
         isOpen={isArchivedModalOpen}
         onClose={() => setIsArchivedModalOpen(false)}
-        workbenchPath={workbenchPath || ""}
+        workbenchPath={workbenchPath || ''}
         onRestore={() => fetchData()}
       />
 
       <EnvSettingsModal
         isOpen={envModalOpen.isOpen}
-        onClose={() => setEnvModalOpen(prev => ({ ...prev, isOpen: false }))}
+        onClose={() => setEnvModalOpen((prev) => ({ ...prev, isOpen: false }))}
         servicePath={envModalOpen.servicePath}
         serviceName={envModalOpen.serviceName}
         initialMode={envModalOpen.initialMode}
         onSaved={() => {
           if (activeWorkbenchId && workbenchPath) {
-            fetchData();
+            fetchData()
           }
         }}
         discoveredFiles={envModalOpen.discoveredFiles}
@@ -1317,95 +1703,118 @@ function App() {
       <CloneRepoModal
         isOpen={isCloneRepoModalOpen}
         onClose={() => setIsCloneRepoModalOpen(false)}
-        workbenchPath={workbenchPath || ""}
+        workbenchPath={workbenchPath || ''}
         onCloneSuccess={() => {
-          setIsRefreshing(true);
-          fetchData(true);
+          setIsRefreshing(true)
+          fetchData(true)
         }}
       />
 
       {/* AI Search Results Modal */}
       {searchResults && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-in fade-in duration-300">
-            <div className="w-full max-w-2xl bg-slate-900 border border-cyan-500/30 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[80vh]">
-                <div className="p-4 border-b border-slate-800 flex items-center justify-between bg-cyan-950/20">
-                    <div className="flex items-center gap-3">
-                        <Sparkles className="h-5 w-5 text-cyan-400" />
-                        <span className="text-sm font-black text-white italic tracking-tight uppercase">AI Local Knowledge Found</span>
-                    </div>
-                    <button onClick={() => setSearchResults(null)} className="text-slate-500 hover:text-white transition-colors cursor-pointer">
-                        <X className="h-5 w-5" />
-                    </button>
-                </div>
-                <div className="p-6 overflow-y-auto space-y-4 custom-scrollbar">
-                    {searchResults.length === 0 ? (
-                        <div className="text-center py-10 text-slate-500 font-mono italic">No relevant documentation found.</div>
-                    ) : searchResults.map((res, i) => (
-                        <div key={i} className="p-4 rounded-xl bg-slate-950/50 border border-slate-800 hover:border-cyan-500/30 transition-all group">
-                            <div className="flex items-center justify-between mb-2">
-                                <span className="text-xs font-black text-cyan-500 uppercase tracking-widest">{res.name}</span>
-                                <button 
-                                    onClick={() => handleOpenIde(res.path)}
-                                    className="text-[10px] text-slate-500 hover:text-cyan-400 font-bold uppercase transition-colors cursor-pointer"
-                                >
-                                    Open File
-                                </button>
-                            </div>
-                            <p className="text-xs text-slate-400 font-mono line-clamp-3 leading-relaxed">
-                                {res.excerpt}
-                            </p>
-                        </div>
-                    ))}
-                </div>
-                <div className="p-4 border-t border-slate-800 bg-slate-950/40 text-[10px] text-slate-600 font-mono italic text-center">
-                    Results aggregated from local workbench search safely.
-                </div>
+          <div className="w-full max-w-2xl bg-slate-900 border border-cyan-500/30 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[80vh]">
+            <div className="p-4 border-b border-slate-800 flex items-center justify-between bg-cyan-950/20">
+              <div className="flex items-center gap-3">
+                <Sparkles className="h-5 w-5 text-cyan-400" />
+                <span className="text-sm font-black text-white italic tracking-tight uppercase">
+                  AI Local Knowledge Found
+                </span>
+              </div>
+              <button
+                onClick={() => setSearchResults(null)}
+                className="text-slate-500 hover:text-white transition-colors cursor-pointer"
+              >
+                <X className="h-5 w-5" />
+              </button>
             </div>
+            <div className="p-6 overflow-y-auto space-y-4 custom-scrollbar">
+              {searchResults.length === 0 ? (
+                <div className="text-center py-10 text-slate-500 font-mono italic">
+                  No relevant documentation found.
+                </div>
+              ) : (
+                searchResults.map((res, i) => (
+                  <div
+                    key={i}
+                    className="p-4 rounded-xl bg-slate-950/50 border border-slate-800 hover:border-cyan-500/30 transition-all group"
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs font-black text-cyan-500 uppercase tracking-widest">
+                        {res.name}
+                      </span>
+                      <button
+                        onClick={() => handleOpenIde(res.path)}
+                        className="text-[10px] text-slate-500 hover:text-cyan-400 font-bold uppercase transition-colors cursor-pointer"
+                      >
+                        Open File
+                      </button>
+                    </div>
+                    <p className="text-xs text-slate-400 font-mono line-clamp-3 leading-relaxed">
+                      {res.excerpt}
+                    </p>
+                  </div>
+                ))
+              )}
+            </div>
+            <div className="p-4 border-t border-slate-800 bg-slate-950/40 text-[10px] text-slate-600 font-mono italic text-center">
+              Results aggregated from local workbench search safely.
+            </div>
+          </div>
         </div>
       )}
 
       {/* AI Health Report Modal */}
       {healthReport && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-in fade-in duration-300">
-            <div className="w-full max-w-md bg-slate-900 border border-emerald-500/30 rounded-2xl shadow-2xl overflow-hidden">
-                <div className="p-4 border-b border-slate-800 flex items-center justify-between bg-emerald-950/20">
-                    <div className="flex items-center gap-3">
-                        <Sparkles className="h-5 w-5 text-emerald-400" />
-                        <span className="text-sm font-black text-white italic tracking-tight uppercase">System Health Audit</span>
-                    </div>
-                    <button onClick={() => setHealthReport(null)} className="text-slate-500 hover:text-white transition-colors cursor-pointer">
-                        <X className="h-5 w-5" />
-                    </button>
-                </div>
-                <div className="p-8">
-                    <div className="mb-6 p-4 bg-slate-950/50 rounded-xl border border-slate-800 font-mono text-xs text-emerald-400 whitespace-pre-line leading-relaxed">
-                        {healthReport}
-                    </div>
-                    <button 
-                        onClick={() => setHealthReport(null)}
-                        className="w-full py-3 rounded-xl bg-emerald-600 text-white text-xs font-black uppercase tracking-widest hover:bg-emerald-500 transition-all shadow-lg shadow-emerald-900/20 cursor-pointer"
-                    >
-                        Acknowledged
-                    </button>
-                </div>
+          <div className="w-full max-w-md bg-slate-900 border border-emerald-500/30 rounded-2xl shadow-2xl overflow-hidden">
+            <div className="p-4 border-b border-slate-800 flex items-center justify-between bg-emerald-950/20">
+              <div className="flex items-center gap-3">
+                <Sparkles className="h-5 w-5 text-emerald-400" />
+                <span className="text-sm font-black text-white italic tracking-tight uppercase">
+                  System Health Audit
+                </span>
+              </div>
+              <button
+                onClick={() => setHealthReport(null)}
+                className="text-slate-500 hover:text-white transition-colors cursor-pointer"
+              >
+                <X className="h-5 w-5" />
+              </button>
             </div>
+            <div className="p-8">
+              <div className="mb-6 p-4 bg-slate-950/50 rounded-xl border border-slate-800 font-mono text-xs text-emerald-400 whitespace-pre-line leading-relaxed">
+                {healthReport}
+              </div>
+              <button
+                onClick={() => setHealthReport(null)}
+                className="w-full py-3 rounded-xl bg-emerald-600 text-white text-xs font-black uppercase tracking-widest hover:bg-emerald-500 transition-all shadow-lg shadow-emerald-900/20 cursor-pointer"
+              >
+                Acknowledged
+              </button>
+            </div>
+          </div>
         </div>
       )}
-      <NetworkMap 
+      <NetworkMap
         isOpen={isNetworkMapOpen}
         onClose={() => setIsNetworkMapOpen(false)}
-        services={services.map(s => ({ name: s.name, status: s.status, dependencies: s.dependencies || [] }))}
+        services={services.map((s) => ({
+          name: s.name,
+          status: s.status,
+          dependencies: s.dependencies || []
+        }))}
       />
-      <AiSettingsModal 
-        isOpen={isAiSettingsModalOpen} 
-        onClose={() => setIsAiSettingsModalOpen(false)} 
+      <AiSettingsModal
+        isOpen={isAiSettingsModalOpen}
+        onClose={() => setIsAiSettingsModalOpen(false)}
         settings={aiSettings}
         onSave={async (newSettings) => {
-          setAiSettings(newSettings);
-          await window.api.updateConfig({ aiSettings: newSettings });
+          setAiSettings(newSettings)
+          await window.api.updateConfig({ aiSettings: newSettings })
         }}
       />
-      <AiChatbot 
+      <AiChatbot
         conversations={conversations}
         activeConversationId={activeConversationId}
         onSendMessage={handleSendMessage}
@@ -1415,11 +1824,55 @@ function App() {
         onClearHistory={handleClearChatHistory}
         onExecuteAction={handleBotAction}
         isProcessing={isBotProcessing}
-        workbenchPath={workbenchPath || ""}
+        workbenchPath={workbenchPath || ''}
         settings={aiSettings}
       />
+
+      <StartupMonitorModal
+        isOpen={!!hangingService}
+        hangingService={hangingService}
+        onMarkReady={handleMarkReady}
+        onAbort={handleAbortCluster}
+      />
+
+      <AnimatePresence>
+        {isOrchestraModalOpen && (
+          <OrchestrationModal
+            isOpen={isOrchestraModalOpen}
+            onClose={() => {
+              setIsOrchestraModalOpen(false)
+              // We no longer clear activeOrchestration here.
+              // It will persist so the GroupCard can show the status.
+            }}
+            group={groups.find((g) => g.id === activeOrchestration?.groupId) || null}
+            allServices={services}
+            statuses={activeOrchestration?.statuses || {}}
+            onAbort={handleAbortCluster}
+            onViewLogs={(path) => handleToggleService(path, 'log')}
+          />
+        )}
+      </AnimatePresence>
+      {isRecording && (
+        <div className="fixed bottom-6 right-6 z-[100] flex items-center gap-4 bg-slate-900/90 backdrop-blur-md border border-red-500/50 rounded-2xl px-6 py-4 shadow-2xl animate-in slide-in-from-bottom-10 duration-500">
+          <div className="flex items-center gap-3">
+            <div className="h-3 w-3 bg-red-500 rounded-full animate-pulse" />
+            <div className="flex flex-col">
+              <span className="text-[10px] font-black text-red-500 uppercase tracking-widest">Recording</span>
+              <span className="text-xl font-mono font-bold text-white leading-none">{formatTime(recordingSeconds)}</span>
+            </div>
+          </div>
+          <div className="h-10 w-px bg-slate-700" />
+          <button
+            onClick={handleStopRecording}
+            className="flex items-center gap-2 bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-xl font-bold transition-all shadow-lg shadow-red-900/20"
+          >
+            <Square className="h-4 w-4 fill-white" />
+            Stop
+          </button>
+        </div>
+      )}
     </main>
-  );
+  )
 }
 
-export default App;
+export default App

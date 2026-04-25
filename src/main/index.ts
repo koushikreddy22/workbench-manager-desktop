@@ -13,7 +13,7 @@ function createWindow(): BrowserWindow {
     show: false,
     autoHideMenuBar: true,
     icon,
-    title: "Vantage",
+    title: 'Vantage',
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       sandbox: false
@@ -37,7 +37,7 @@ function createWindow(): BrowserWindow {
     mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
   }
 
-  return mainWindow;
+  return mainWindow
 }
 
 // This method will be called when Electron has finished
@@ -55,17 +55,17 @@ app.whenReady().then(() => {
   })
 
   // Initialize all custom IPC handlers for the Dashboard backend
-  setupIpcHandlers();
+  setupIpcHandlers()
 
-  const mainWindow = createWindow();
-  terminalManager.init(mainWindow);
+  const mainWindow = createWindow()
+  terminalManager.init(mainWindow)
 
   app.on('activate', function () {
     // On macOS it's common to re-create a window in the app when the
     // dock icon is clicked and there are no other windows open.
     if (BrowserWindow.getAllWindows().length === 0) {
-      const win = createWindow();
-      terminalManager.init(win);
+      const win = createWindow()
+      terminalManager.init(win)
     }
   })
 })

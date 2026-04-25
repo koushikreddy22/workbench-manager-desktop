@@ -1,4 +1,4 @@
-@import "tailwindcss";
+@import 'tailwindcss';
 
 @import './base.css';
 
@@ -16,25 +16,25 @@
 }
 
 ::-webkit-scrollbar-track {
-  background: #0B0F19;
+  background: #0b0f19;
 }
 
 ::-webkit-scrollbar-thumb {
   background: #1e293b;
   border-radius: 20px;
-  border: 2px solid #0B0F19;
+  border: 2px solid #0b0f19;
   transition: all 0.3s ease;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #0EA5E9; /* Electric Cyan */
+  background: #0ea5e9; /* Electric Cyan */
   box-shadow: 0 0 15px rgba(14, 165, 233, 0.4);
 }
 
 /* Specific Utility for nested containers */
 .custom-scrollbar::-webkit-scrollbar-thumb {
   background: #1e293b;
-  border: 2px solid #131B2A;
+  border: 2px solid #131b2a;
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
@@ -42,5 +42,5 @@
 }
 
 .custom-scrollbar::-webkit-scrollbar-track {
-  background: #131B2A;
+  background: #131b2a;
 }

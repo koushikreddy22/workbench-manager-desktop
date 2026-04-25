@@ -5,7 +5,7 @@ directories:
   buildResources: build
 
 files:
-  - "out/**/*"
+  - 'out/**/*'
   - '!**/.vscode/*'
   - '!src/*'
   - '!electron.vite.config.{js,ts,mjs,cjs}'
@@ -17,8 +17,8 @@ win:
   executableName: Vantage
   icon: build/icon.ico
   target: portable
-  publisherName: "Koushik Reddy"
-  legalTrademarks: "Copyright © 2026 Koushik Reddy. All rights reserved."
+  publisherName: 'Koushik Reddy'
+  legalTrademarks: 'Copyright © 2026 Koushik Reddy. All rights reserved.'
 
 linux:
   target:
